@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mercado Negro — Comnect Guardians{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/store.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="store-wrapper">
+
+    {# ── TOP HUD: Wallet + Active Modules ── #}
+    <div class="store-hud">
+
+        <div class="hud-wallet">
+            <span class="hud-wallet-label">SALDO</span>
+            <span class="hud-wallet-val font-tech" id="player-coins">{{ player.coins }} ⬡</span>
+        </div>
+
+        <div class="hud-divider"></div>
+
+        <span class="hud-modules-label">MÓDULOS ATIVOS</span>
+
+        <div class="hud-modules">
+            {% for slot_num, p_item in inventario.passivos.items %}
+            <div class="hud-module-slot {% if p_item %}occupied rarity-{{ p_item.item.raridade|lower }}{% else %}empty{% endif %}"
+                 data-slot-index="{{ slot_num }}">
+                <span class="hud-slot-num font-tech">0{{ slot_num }}</span>
+                {% if p_item %}
+                    <i class="bi {{ p_item.item.icon }} hud-slot-icon"></i>
+                    <span class="hud-slot-name">{{ p_item.item.name }}</span>
+                    <button class="btn-sell-hud font-tech" data-id="{{ p_item.item.item_id }}">VND</button>
+                    <div class="slot-tooltip">{{ p_item.item.description }}</div>
+                {% else %}
+                    <i class="bi bi-dash-square-dotted hud-slot-empty-icon"></i>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <span class="hud-date font-tech">{{ daily.date|date:"d/m/Y" }}</span>
+
+    </div>
+
+    {# ── MAIN STORE ── #}
+    <div class="store-main">
+
+        <div class="store-header">
+            <h1 class="store-title font-tech">// MERCADO NEGRO</h1>
+            <p class="store-sub font-tech">ADQUIRA UPGRADES · MONTE SUA BUILD · DOMINE O SISTEMA</p>
+        </div>
+
+        {# ── REROLL — acima das cartas, alinhado à direita ── #}
+        <div class="reroll-section">
+            <p class="reroll-hint font-tech">// CUSTO AUMENTA A CADA REROLL</p>
+            <button class="btn-reroll font-tech" id="btn-reroll" type="button">
+                <div class="reroll-label">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span>REROLL</span>
+                    <span class="reroll-cost-badge">
+                        <span id="reroll-cost">{{ reroll_custo }}</span> ⬡
+                    </span>
+                </div>
+            </button>
+        </div>
+
+        {# ── CARD TABLE ── #}
+        <div class="card-table" id="loja-items">
+            {% for slot in slots %}
+                {% include 'store/_card.html' with slot=slot %}
+            {% empty %}
+            <div class="card-empty">
+                <i class="bi bi-hdd-network"></i>
+                <span class="font-tech">SEM DADOS</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="store-info-bar">
+            <i class="bi bi-info-square"></i>
+            Máximo de 4 módulos passivos ativos simultâneos. Consumíveis vão para o inventário de carga. Venda módulos por 50% do valor original.
+        </div>
+
+    </div>
+
+    {# ── TOAST ── #}
+    <div class="store-toast" id="store-toast"></div>
+
+</div>
+
+<script>
+    window.STORE_URLS = {
+        reroll:  "{% url 'store:ajax_reroll' %}",
+        comprar: "{% url 'store:ajax_comprar' %}",
+        vender:  "{% url 'store:ajax_vender' %}"
+    };
+
+    window.STORE_STATE = {
+        coins:       {{ player.coins }},
+        rerollCusto: {{ reroll_custo }},
+        equippedIds: [
+            {% for slot_num, p_item in inventario.passivos.items %}
+                {% if p_item %}"{{ p_item.item.item_id }}"{% if not forloop.last %},{% endif %}{% endif %}
+            {% endfor %}
+        ]
+    };
+</script>
+<script src="{% static 'js/store.js' %}"></script>
+{% endblock %}
