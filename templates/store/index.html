@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Mercado Negro — Comnect Guardians{% endblock %}
+{% block title %}Loja — Comnect Guardians{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/store.css' %}">
@@ -25,16 +25,31 @@
         <div class="hud-modules">
             {% for slot_num, p_item in inventario.passivos.items %}
             <div class="hud-module-slot {% if p_item %}occupied rarity-{{ p_item.item.raridade|lower }}{% else %}empty{% endif %}"
-                 data-slot-index="{{ slot_num }}">
-                <span class="hud-slot-num font-tech">0{{ slot_num }}</span>
+                data-slot-index="{{ slot_num }}">
+
                 {% if p_item %}
-                    <i class="bi {{ p_item.item.icon }} hud-slot-icon"></i>
-                    <span class="hud-slot-name">{{ p_item.item.name }}</span>
-                    <button class="btn-sell-hud font-tech" data-id="{{ p_item.item.item_id }}">VND</button>
-                    <div class="slot-tooltip">{{ p_item.item.description }}</div>
+                
+                <div class="card-inner">
+
+                    <div class="card-front">
+                        <span class="hud-slot-num font-tech">0{{ slot_num }}</span>
+                        <i class="bi {{ p_item.item.icon }} hud-slot-icon"></i>
+                        <span class="hud-slot-name">{{ p_item.item.name }}</span>
+
+                    </div>
+
+                    <div class="card-back">
+                        <span class="hud-slot-num font-tech">0{{ slot_num }}</span>
+                        <p class="card-back-desc font-tech">{{ p_item.item.description }}</p>
+                    </div>
+                    
+                </div>
+                <button class="btn-sell-hud font-tech" data-id="{{ p_item.item.item_id }}">Vender 50%</button>
+
                 {% else %}
                     <i class="bi bi-dash-square-dotted hud-slot-empty-icon"></i>
                 {% endif %}
+
             </div>
             {% endfor %}
         </div>

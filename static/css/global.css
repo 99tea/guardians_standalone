@@ -22,7 +22,7 @@
     --panel-alt:    #161c24;
     --border-tech:  #45a29e;
     --text-muted:   #8b949e;
-    --text-dim:     #4a5568;
+    --text-dim:     #aeaeaf;
 
     --tech-font: 'Share Tech Mono', monospace;
     --ui-font:   'Rajdhani', sans-serif;
@@ -102,11 +102,11 @@ body {
 .cg-nav-item {
     text-decoration: none;
     font-family: var(--tech-font);
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: var(--text-muted);
-    padding: 6px 14px;
+    padding: 6px 30px;
     border: 1px solid transparent;
     border-radius: 2px;
     transition: all 0.2s;
@@ -317,7 +317,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 12px 16px;
-    font-size: 0.58rem;
+    font-size: 0.65rem;
     letter-spacing: 3px;
     color: var(--text-dim);
     border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -362,9 +362,9 @@ body {
 .tipo-sistema     .notif-icon { color: var(--text-dim); }
 
 .notif-content { display: flex; flex-direction: column; gap: 3px; }
-.notif-titulo  { font-size: 0.72rem; letter-spacing: 1px; color: #fff; }
-.notif-msg     { font-size: 0.7rem; color: var(--text-muted); line-height: 1.4; }
-.notif-time    { font-size: 0.58rem; letter-spacing: 1px; color: var(--text-dim); margin-top: 2px; }
+.notif-titulo  { font-size: 0.8rem; letter-spacing: 1px; color: #fff; }
+.notif-msg     { font-size: 0.78rem; color: #fff; line-height: 1.4; }
+.notif-time    { font-size: 0.64rem; letter-spacing: 1px; color: #c2c0c0; margin-top: 2px; }
 
 .notif-empty {
     padding: 28px;
@@ -374,3 +374,54 @@ body {
     color: var(--text-dim);
     background: #0f1117;
 }
+
+
+.cg-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Espaço entre o escudo e o texto */
+    text-decoration: none;
+}
+
+.navbar-icon-shield {
+    height: 28px; /* Ajuste conforme a altura da sua navbar */
+    width: auto;
+    /* Efeito de brilho neon combinando com a paleta original */
+    filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.5)); 
+    transition: transform 0.3s ease;
+}
+
+.cg-logo:hover .navbar-icon-shield {
+    transform: scale(1.1) rotate(-5deg);
+    filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.8));
+}
+
+/* Estilo global para o símbolo de moeda */
+.coin-icon {
+    color: #FFD700; /* Amarelo Ouro/Gold */
+    font-weight: bold;
+    margin-right: 4px;
+    display: inline-block;
+    /* Brilho neon para combinar com a navbar */
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+    user-select: none;
+}
+
+/* Ajuste específico para o HUD para manter o alinhamento */
+.hud-stat {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-color, #fff);
+    font-family: 'Share Tech Mono', monospace;
+}
+
+/* Se quiser que o hexágono pulse levemente quando o valor mudar (opcional) */
+.coin-icon {
+    transition: transform 0.2s ease;
+}
+
+.hud-stat:hover .coin-icon {
+    transform: scale(1.2);
+}
+

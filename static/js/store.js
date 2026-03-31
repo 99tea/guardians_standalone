@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SFX = {
         click()    { playTone({ freq: 800, freq2: 600,  type: 'square',   duration: 0.06, gain: 0.10 }); },
-        hover()    { playTone({ freq: 1200, freq2: 1400, type: 'sine',    duration: 0.04, gain: 0.04 }); },
+        /*hover()    { playTone({ freq: 1200, freq2: 1400, type: 'sine',    duration: 0.04, gain: 0.04 }); }, */
         buy() {
             playTone({ freq: 300, freq2: 600,  type: 'sine', duration: 0.12, gain: 0.15 });
             playTone({ freq: 600, freq2: 900,  type: 'sine', duration: 0.12, gain: 0.12, delay: 0.10 });
@@ -189,6 +189,41 @@ document.addEventListener('DOMContentLoaded', () => {
         const salePrefix = slot.tem_desconto
             ? '<span style="font-size:0.5rem;letter-spacing:2px;opacity:0.7;vertical-align:middle">SALE </span>'
             : '';
+
+        if (slot.tipo === 'consumable') {
+            return `
+            <div class="item-card item-card--consumable rarity-${raridade}"
+                 data-item-id="${slot.item_id}"
+                 data-price="${slot.preco_final}">
+                <div class="card-consumable-stripe"></div>
+                <div class="card-body">
+                    <div class="card-scanlines"></div>
+                    <div class="card-top">
+                        <span class="card-tipo-badge card-tipo-badge--consumable font-tech">
+                            <i class="bi bi-lightning-charge-fill"></i> CONSUMÍVEL
+                        </span>
+                        <span class="card-rarity-badge font-tech badge-${raridade}">${slot.raridade}</span>
+                    </div>
+                    <div class="card-art card-art--consumable">
+                        <div class="card-art-icon-glow consumable-glow"></div>
+                        <i class="bi ${icon} card-art-icon card-art-icon--consumable"></i>
+                        <span class="card-uses-badge font-tech">1× USO</span>
+                    </div>
+                    <div class="card-content">
+                        <h4 class="card-name">${slot.name}</h4>
+                        <p class="card-desc">${slot.description}</p>
+                    </div>
+                    <div class="card-footer card-footer--consumable">
+                        <span class="card-price font-tech ${discClass}">
+                            ${salePrefix}${slot.preco_final} ⬡
+                        </span>
+                        <button class="btn-buy btn-buy--consumable font-tech" data-id="${slot.item_id}">
+                            <i class="bi bi-bag-plus"></i><span>CARREGAR</span>
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        }
 
         return `
         <div class="item-card rarity-${raridade}"
@@ -385,27 +420,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 setCoins(data.coins_atual);
                 setRerollCusto(data.proximo_custo);
                 lojaContainer.innerHTML = '';
+                
                 data.novos_itens.forEach((slot, i) => {
                     lojaContainer.insertAdjacentHTML('beforeend', buildCardHTML(slot));
                     const card = lojaContainer.lastElementChild;
-                    card.style.opacity   = '0';
+                    
+                    card.style.opacity = '0';
                     card.style.transform = 'translateY(24px) scale(0.95)';
+                    validateCard(card);
+                    
                     setTimeout(() => {
                         card.style.transition = 'opacity 0.4s ease, transform 0.4s cubic-bezier(0.34,1.56,0.64,1)';
-                        card.style.opacity    = '1';
-                        card.style.transform  = 'translateY(0) scale(1)';
-                        validateCard(card);
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0) scale(1)';
                     }, i * 120);
                 });
+
                 showToast('Novos itens gerados no mercado.', 'ok');
             } else {
                 SFX.error();
                 showToast(data.mensagem || 'Erro no reroll.', 'error');
-                window.location.reload();
             }
 
             btnReroll.disabled = false;
-            refreshValidations();
         });
     }
 
