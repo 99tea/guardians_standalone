@@ -109,15 +109,36 @@ document.addEventListener('DOMContentLoaded', () => {
        AÇÕES AJAX DO PERFIL
     ══════════════════════════════════════════════════ */
 
-    // ── Conquistas (Destaque & Drag n' Drop)
     const areaDestaque = document.getElementById('area-destaque');
     const areaInventario = document.getElementById('area-inventario');
+    const areaPreviewPerfil = document.getElementById('preview-build-atual');
     const countDestaque = document.getElementById('count-destaque');
-    const maxDestaques = parseInt(areaDestaque?.dataset.max || 3);
 
     const pNome = document.getElementById('ach-preview-nome');
     const pDesc = document.getElementById('ach-preview-desc');
     const pBonus = document.getElementById('ach-preview-bonus');
+
+    // Função segura para montar os sockets sem perder os itens
+    function renderizarSockets(container) {
+        if (!container) return;
+        const max = parseInt(container.dataset.max || 3);
+        const conquistasEquipadas = Array.from(container.querySelectorAll('.achievement-item'));
+        
+        container.innerHTML = ''; 
+        
+        for (let i = 0; i < max; i++) {
+            const socket = document.createElement('div');
+            socket.className = 'ach-socket';
+            
+            if (conquistasEquipadas[i]) {
+                socket.appendChild(conquistasEquipadas[i]);
+            }
+            container.appendChild(socket);
+        }
+    }
+
+    renderizarSockets(areaDestaque);
+    renderizarSockets(areaPreviewPerfil);
 
     function updatePreview(item) {
         pNome.textContent = item.dataset.nome || '???';
@@ -146,21 +167,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const isEquipped = itemInventario.classList.contains('is-equipped');
 
         if (isEquipped) {
+            // DESEQUIPAR
             const data = await reqToggle(paId, false);
             if (data.ok) {
                 if (typeof SFX !== 'undefined') SFX.unequip();
-                itemInventario.classList.remove('is-equipped');
-                document.querySelector(`#area-destaque .achievement-item[data-pa-id="${paId}"]`)?.remove();
-                countDestaque.textContent = data.count;
+                itemInventario.classList.remove('is-equipped'); // Devolve a cor original na grid
+                
+                // Remove apenas do Modal
+                const equippedItem = areaDestaque?.querySelector(`.achievement-item[data-pa-id="${paId}"]`);
+                if (equippedItem) equippedItem.remove();
+                
+                if (countDestaque) countDestaque.textContent = data.count;
             }
         } else {
-            const slotsAtuais = document.querySelectorAll('#area-destaque .achievement-item');
-            if (slotsAtuais.length >= maxDestaques) {
-                const maisAntigo = slotsAtuais[0];
-                const antigoId = maisAntigo.dataset.paId;
-                await reqToggle(antigoId, false);
-                maisAntigo.remove();
-                document.querySelector(`#area-inventario .achievement-item[data-pa-id="${antigoId}"]`)?.classList.remove('is-equipped');
+            // EQUIPAR
+            // Procura sockets vazios APENAS no modal
+            const socketsVazios = Array.from(areaDestaque.querySelectorAll('.ach-socket')).filter(s => s.children.length === 0);
+            
+            if (socketsVazios.length === 0) {
+                // Tira a mais velha se estiver cheio
+                const primeiroSocket = areaDestaque.querySelector('.ach-socket');
+                const maisAntigo = primeiroSocket.querySelector('.achievement-item');
+                
+                if (maisAntigo) {
+                    const antigoId = maisAntigo.dataset.paId;
+                    await reqToggle(antigoId, false);
+                    maisAntigo.remove();
+                    
+                    const oldOriginal = areaInventario.querySelector(`.achievement-item[data-pa-id="${antigoId}"]`);
+                    if (oldOriginal) oldOriginal.classList.remove('is-equipped'); // Devolve a cor da que saiu
+                    socketsVazios.push(primeiroSocket); 
+                }
             }
 
             const data = await reqToggle(paId, true);
@@ -171,30 +208,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 const clone = itemInventario.cloneNode(true);
                 clone.classList.remove('is-equipped');
                 clone.classList.add('em-destaque');
-                clone.addEventListener('mouseenter', () => updatePreview(clone));
-                clone.addEventListener('click', () => processarCliqueConquista(itemInventario));
                 
-                areaDestaque.appendChild(clone);
-                countDestaque.textContent = data.count;
+                if (socketsVazios.length > 0) {
+                    socketsVazios[0].appendChild(clone);
+                }
+                if (countDestaque) countDestaque.textContent = data.count;
             }
         }
     }
 
-    // Bind inicial do inventário
-    document.querySelectorAll('#area-inventario .achievement-item').forEach(item => {
-        item.addEventListener('mouseenter', () => updatePreview(item));
-        if (item.classList.contains('unlocked')) {
-            item.addEventListener('click', () => processarCliqueConquista(item));
-        }
-    });
+    // DELEGAÇÃO DE EVENTOS: Garante que os cliques funcionem mesmo após os elementos se moverem
+    if (areaInventario) {
+        areaInventario.addEventListener('click', (e) => {
+            const item = e.target.closest('.achievement-item.unlocked');
+            if (item) processarCliqueConquista(item);
+        });
+    }
 
-    // Bind inicial do destaque
-    document.querySelectorAll('#area-destaque .achievement-item').forEach(clone => {
-        clone.addEventListener('mouseenter', () => updatePreview(clone));
-        clone.addEventListener('click', () => {
-            const original = document.querySelector(`#area-inventario .achievement-item[data-pa-id="${clone.dataset.paId}"]`);
+    if (areaDestaque) {
+        areaDestaque.addEventListener('click', (e) => {
+            const item = e.target.closest('.achievement-item');
+            if (!item) return;
+            // Acha o original na grid e manda o clique pra ele
+            const original = areaInventario.querySelector(`.achievement-item[data-pa-id="${item.dataset.paId}"]`);
             if (original) processarCliqueConquista(original);
         });
+    }
+
+    // Delegação para o Hover (Preview)
+    document.addEventListener('mouseover', (e) => {
+        const item = e.target.closest('.achievement-item');
+        if (item && (areaDestaque?.contains(item) || areaInventario?.contains(item))) {
+            updatePreview(item);
+        }
     });
 
     // Lógica do botão VER MAIS
@@ -206,12 +252,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Refresh da página ao fechar o Modal (atualiza o painel de atributos base da tela)
+    // Atualiza os bônus da tela principal ao fechar
     const modalEl = document.getElementById('modalConquistas');
     if (modalEl) {
         modalEl.addEventListener('hidden.bs.modal', () => location.reload());
     }
-
     
 
     // ── Equipar Cosmético
@@ -273,21 +318,154 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ── Usar Consumível
-    document.querySelectorAll('.btn-usar-consumivel').forEach(btn => {
-        btn.addEventListener('click', async function() {
-            SFX.click();
-            const { ok, data } = await cyberFetch(window.PROFILE_URLS.usarConsumivel, { 
-                player_item_id: this.dataset.piId 
-            });
+    // ── Lógica de Seleção e Slider de Injeção
+    let consumivelSelecionadoId = null;
+    
+    const injectorContainer = document.getElementById('injector-container');
+    const injectorThumb = document.getElementById('injector-thumb');
+    const injectorFill = document.querySelector('.injector-fill');
+    const injectorText = document.getElementById('injector-text');
+    
+    let isDragging = false;
+    let startX = 0;
+    let maxDrag = 0;
 
-            if (ok && data.ok) {
-                SFX.equip();
-                showToast(data.mensagem || 'Consumível ativado.', 'ok');
+    // 1. Lógica de clicar na carta para liberar o slider
+    document.querySelectorAll('#tab-modal-cons .item-card--consumable').forEach(card => {
+        card.addEventListener('click', function() {
+            if (typeof SFX !== 'undefined') SFX.tab();
+            
+            const isSelected = this.classList.contains('selected-card');
+            document.querySelectorAll('#tab-modal-cons .item-card--consumable').forEach(c => c.classList.remove('selected-card'));
+            
+            if (isSelected) {
+                consumivelSelecionadoId = null;
+                if (injectorContainer) {
+                    injectorContainer.className = 'injector-locked';
+                    injectorText.innerHTML = '<i class="bi bi-lock-fill me-2"></i> SELECIONE UMA CARGA';
+                }
+            } else {
+                this.classList.add('selected-card');
+                consumivelSelecionadoId = this.dataset.piId;
+                if (injectorContainer) {
+                    injectorContainer.className = 'injector-ready';
+                    injectorText.innerHTML = 'DESLIZE PARA INJETAR <i class="bi bi-chevron-double-right ms-2"></i>';
+                }
+            }
+        });
+    });
+
+    // 2. Lógica de Arrastar o Slider
+    if (injectorThumb) {
+        // Eventos de Mouse e Touch
+        injectorThumb.addEventListener('mousedown', startDrag);
+        injectorThumb.addEventListener('touchstart', startDrag, {passive: true});
+
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag, {passive: false});
+
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+    }
+
+    function startDrag(e) {
+        if (injectorContainer.classList.contains('injector-locked') || injectorContainer.classList.contains('injector-firing')) return;
+        
+        isDragging = true;
+        startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        maxDrag = injectorContainer.offsetWidth - injectorThumb.offsetWidth - 8; // 8px de margem (left 4 + right 4)
+        
+        // Tira o tempo de transição pra não ter "lag" no mouse
+        injectorThumb.style.transition = 'none';
+        injectorFill.style.transition = 'none';
+    }
+
+    function drag(e) {
+        if (!isDragging) return;
+        // e.preventDefault(); // Evita scroll no celular enquanto arrasta
+        
+        let currentX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        let deltaX = currentX - startX;
+        
+        // Trava o movimento entre 0 e o final da barra
+        let pos = Math.max(0, Math.min(deltaX, maxDrag));
+        
+        injectorThumb.style.transform = `translateX(${pos}px)`;
+        injectorFill.style.width = `${pos + 10}px`; // +10 pra barra não ficar atrás do botão
+        
+        // Verifica se chegou ao fim (98% da barra para garantir)
+        if (pos >= maxDrag * 0.98) {
+            isDragging = false;
+            injetarCarga();
+        }
+    }
+
+    function endDrag() {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        // Se soltou antes de chegar no fim, a mola puxa de volta
+        injectorThumb.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        injectorFill.style.transition = 'width 0.3s ease';
+        
+        injectorThumb.style.transform = 'translateX(0px)';
+        injectorFill.style.width = '0px';
+    }
+
+    // 3. O Disparo para o Backend
+    async function injetarCarga() {
+        if (!consumivelSelecionadoId) return;
+        
+        if (typeof SFX !== 'undefined') SFX.click();
+        
+        // Trava a UI em estado de injeção
+        injectorContainer.className = 'injector-firing';
+        injectorThumb.style.transform = `translateX(${maxDrag}px)`;
+        injectorText.innerHTML = '<i class="bi bi-cpu me-2"></i> INJETANDO CÓDIGO...';
+
+        const { ok, data } = await cyberFetch(window.PROFILE_URLS.usarConsumivel, { 
+            player_item_id: consumivelSelecionadoId 
+        });
+
+        if (ok && data.ok) {
+            if (typeof SFX !== 'undefined') SFX.equip();
+            if (typeof showToast !== 'undefined') showToast(data.mensagem || 'Carga tática injetada.', 'ok');
+            injectorText.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> SUCESSO';
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            if (typeof SFX !== 'undefined') SFX.error();
+            if (typeof showToast !== 'undefined') showToast(data.mensagem || 'Falha ao injetar carga.', 'error');
+            
+            // Falhou? Reseta o slider para o estado 'ready'
+            injectorContainer.className = 'injector-ready';
+            injectorText.innerHTML = 'FALHA. TENTE NOVAMENTE <i class="bi bi-chevron-double-right ms-2"></i>';
+            injectorThumb.style.transform = 'translateX(0px)';
+            injectorFill.style.width = '0px';
+        }
+    }
+
+    // ── Battle Pass — coletar recompensa ────────
+    document.querySelectorAll('.btn-bp-coletar').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const tier    = parseInt(this.dataset.tier);
+            const descricao = this.dataset.descricao;
+
+            const res  = await fetch("{% url 'profiles:bp_coletar' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ tier }),
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                // Feedback visual antes de reload
+                this.textContent = '✓ COLETADO!';
+                this.disabled    = true;
+                this.closest('.bp-tier').classList.add('bp-coletado');
+                this.closest('.bp-tier').classList.remove('bp-disponivel');
                 setTimeout(() => location.reload(), 800);
             } else {
-                SFX.error();
-                showToast(data.mensagem || 'Erro ao usar consumível.', 'error');
+                alert(data.mensagem);
             }
         });
     });
@@ -337,4 +515,5 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
 });
