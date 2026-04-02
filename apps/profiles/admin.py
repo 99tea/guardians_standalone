@@ -12,9 +12,9 @@ from django.template.response import TemplateResponse
 @admin.register(ClasseConfig)
 class ClasseConfigAdmin(admin.ModelAdmin):
     fieldsets = (
-        ('Troca de Classe', {
-            'description': 'Custo em coins para o player trocar de classe.',
-            'fields': ('custo_troca_coins',)
+        ('Troca e Escolha de Classe', {
+            'description': 'Custo em coins para o player escolher a primeira classe ou trocar de classe.',
+            'fields': ('custo_primeira_classe', 'custo_troca_coins',)
         }),
     )
 
@@ -182,8 +182,10 @@ class PlayerAdmin(admin.ModelAdmin):
 
     def classe_badge(self, obj):
         cores = {
-            'guardian': '#0dcaf0', 'analyst': "#e4e805",
-            'sentinel': '#bd00ff', 'hacker':  '#ff2a6d',
+            'guardian': '#0dcaf0',
+            'analyst':  '#bd00ff',
+            'sentinel': '#fcee0a',
+            'hacker':   '#ff2a6d',
         }
         cor = cores.get(obj.classe, '#adb5bd')
         return format_html('<span style="color:{}; font-weight:bold;">⬤ {}</span>',
@@ -286,24 +288,32 @@ class PlayerAdmin(admin.ModelAdmin):
             efeitos_count      = ActiveEffect.objects.filter(player=user).count()
             loja_diaria_count  = DailyStore.objects.filter(player=user).count()
             transacoes_count   = StoreTransaction.objects.filter(player=user).count()
-            system_logs_count = SystemLog.objects.filter(player=user).count()
+            system_logs_count  = SystemLog.objects.filter(player=user).count() # Apenas contagem para o debug
 
             PlayerItem.objects.filter(player=user).delete()
             ActiveEffect.objects.filter(player=user).delete()
             DailyStore.objects.filter(player=user).delete()
             StoreTransaction.objects.filter(player=user).delete()  # ⚠️ ambiente de teste apenas
             
-
-            # ── Zera o perfil do player
+            # ── 1º PASSO: Zera o perfil do player e SALVA
             player_obj.xp_total            = 0
             player_obj.level               = 1
-            player_obj.coins               = 0
+            #player_obj.coins               = 0
             player_obj.streak_days         = 0
             player_obj.ofensiva            = 0
             player_obj.last_play_date      = None
             player_obj.last_challenge_date = None
             player_obj.classe_trocada_em   = None
-            player_obj.save()
+            player_obj.classe              = 'none'
+            player_obj.avatar              = None 
+            player_obj.save() # <-- Se algum signal de log for disparado, será gerado AQUI
+
+            # ── 2º PASSO: Limpeza de Histórico (AGORA VEM DEPOIS DO SAVE)
+            XPEvent.objects.filter(player=user).delete()
+            PlayerNotification.objects.filter(player=user).delete()
+            PlayerAchievement.objects.filter(player=user).delete()
+            RankingSnapshot.objects.filter(player=user).delete()
+            SystemLog.objects.filter(player=user).delete() # <-- APAGA O LOG "FANTASMA" AQUI
 
             print(f"[RESET DEBUG] Usuário: {user.username}")
             print(f"  ├─ Itens removidos:           {itens_count}")

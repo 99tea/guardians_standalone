@@ -119,11 +119,21 @@ def log_classe_change(sender, instance, created, **kwargs):
 
     classe_anterior, _ = cached
     if classe_anterior != instance.classe:
-        custo = ClasseConfig.get().custo_troca_coins
+        config = ClasseConfig.get()
+        
+        is_primeira_vez = (classe_anterior == 'none')
+        
+        if is_primeira_vez:
+            custo = config.custo_primeira_classe
+            titulo_log = f'Primeira Classe: {instance.get_classe_display()}'
+        else:
+            custo = config.custo_troca_coins
+            titulo_log = f'Classe alterada: {classe_anterior} → {instance.classe}'
+
         registrar_log(
             user=instance.user,
             tipo='classe_change',
-            titulo=f'Classe alterada: {classe_anterior} → {instance.classe}',
+            titulo=titulo_log,
             coin_delta=-custo,
             breakdown={
                 "classe_anterior": classe_anterior,

@@ -9,23 +9,20 @@
 
 {% block content %}
 {# Define a cor do tema baseada na classe do jogador #}
-<div class="profile-page-wrapper theme-{{ player.classe }}">
+<div class="profile-page-wrapper theme-{{ player.classe|default:'none'|lower }}">
 
     {# ── HERO SECTION ── #}
     <section class="profile-hero text-center">
         <div class="container position-relative">
             
             <div class="hero-actions">
-                <div class="team-badge font-tech small">
-                    <i class="bi bi-diagram-3-fill"></i> NÍVEL DE ACESSO: {{ player.level }}
-                </div>
                 <div> 
-                    <a href="{% url 'profiles:editar' %}" class="btn-perfil-acao font-tech">
+                    <a href="{% url 'profiles:editar' %}" class="btn-cyber-store font-tech" style="font-size:0.8rem; padding: 12px 28px; text-decoration: none;">
                         <i class="bi bi-pencil-square"></i> EDITAR
                     </a>
-                    <button class="btn-perfil-acao font-tech ms-2" id="btn-trocar-classe">
-                        <i class="bi bi-arrow-repeat"></i> CLASSE
-                    </button>
+                    <a href="{% url 'profiles:selecao_classe' %}" class="btn-cyber-store font-tech ms-2 {% if not player.classe or player.classe == 'none' %}btn-pulse-anim{% endif %}" style="font-size:0.8rem; padding: 12px 28px; text-decoration: none;">
+                        <i class="bi bi-diagram-3-fill"></i> CLASSE
+                    </a>
                 </div>
             </div>
 
@@ -58,7 +55,7 @@
 
             <div class="xp-system">
                 <div class="tech-progress">
-                    <div class="tech-progress-bar" style="width: {{ xp_percentual|default:0 }}%;"></div>
+                    <div class="tech-progress-bar" style="width: {% widthratio player.xp_no_nivel_atual player.xp_necessario_nivel_atual 100 %}%;"></div>
                 </div>
                 <div class="xp-numbers font-tech">
                     <span>XP ATUAL: {{ player.xp_no_nivel_atual }}</span>
@@ -66,9 +63,11 @@
                 </div>
             </div>
 
-            <div class="week-tracker mt-3" title="Atividade Semanal">
+            <div class="week-tracker mt-3 d-flex justify-content-center gap-2" title="Atividade Semanal">
                 {% for dia in atividade_semanal %}
-                    <div class="day-bit {% if dia.ativo %}active{% endif %} {% if dia.hoje %}hoje{% endif %}" title="{{ dia.dia_nome }}"></div>
+                    <div class="day-slot font-tech {% if dia.ativo %}active{% elif not dia.futuro %}inactive{% endif %} {% if dia.hoje %}hoje{% endif %}" title="{{ dia.data|date:'d/m' }}">
+                        {{ dia.dia_nome }}
+                    </div>
                 {% endfor %}
             </div>
             
@@ -92,7 +91,7 @@
                 <div class="stat-label font-tech">QUIZZES</div>
             </div>
             <div class="stat-box">
-                <div class="stat-value">{{ stats.cod_count|add:stats.dcr_count }}</div>
+                <div class="stat-value">{{ stats.cod_count|add:stats.dcr_count|add:stats.pw_count }}</div>
                 <div class="stat-label font-tech">MINIGAMES</div>
             </div>
             <div class="stat-box">
@@ -107,21 +106,18 @@
             {# ── COLUNA ESQUERDA (Atividades) ── #}
             <div class="col-lg-7">
                 
-                {# ── MISSÕES ATIVAS (DIRETRIZES) ── #}
+            {# ── MISSÕES ATIVAS (DIRETRIZES) ── #}
                 <div class="cyber-card mb-4">
                     <div class="cyber-header d-flex justify-content-between align-items-center">
                         <div class="cyber-title">
                             <i class="bi bi-journal-code text-theme me-2"></i> MISSÕES
                         </div>
-                        <span class="badge font-tech" style="background: rgba(13,202,240,0.1); border: 1px solid var(--neon-blue); color: var(--neon-blue); letter-spacing: 1px;">
-                            SET ATUAL
-                        </span>
                     </div>
                     <div class="p-3">
                         {% for mission in active_missions %}
                             <div class="mission-item mb-3">
                                 <div class="d-flex justify-content-between font-tech small mb-1" style="letter-spacing: 0.5px;">
-                                    <span class="text-white">{{ mission.title_generated }}</span>
+                                    <span class="text-theme">{{ mission.title_generated }}</span>
                                     <span class="{% if mission.is_completed %}text-neon-green{% else %}text-theme{% endif %}">
                                         {{ mission.current_progress }} / {{ mission.target_value }}
                                     </span>
@@ -129,9 +125,9 @@
                                 <div class="tech-progress" style="height: 6px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 2px;">
                                     <div class="tech-progress-bar" 
                                         style="width: {% widthratio mission.current_progress mission.target_value 100 %}%; 
-                                                background: {% if mission.is_completed %}var(--neon-green){% else %}var(--neon-blue){% endif %};
-                                                box-shadow: 0 0 10px {% if mission.is_completed %}rgba(5,217,232,0.6){% else %}rgba(13,202,240,0.6){% endif %};
-                                                transition: width 0.5s ease-in-out;">
+                                               background: var(--theme-color);
+                                               box-shadow: 0 0 10px {% if mission.is_completed %}var(--neon-green){% else %}var(--theme-color){% endif %};
+                                               transition: width 0.5s ease-in-out;">
                                     </div>
                                 </div>
                             </div>
@@ -211,7 +207,51 @@
 
             {# ── COLUNA DIREITA ── #}
             <div class="col-lg-5">
-                    
+                {# ── BUILD ATUAL (CONQUISTAS EQUIPADAS) ── #}
+                <div class="cyber-card">
+                    <div class="cyber-header d-flex justify-content-between align-items-center">
+                        <div class="cyber-title">
+                            <i class="bi bi-cpu text-theme me-2"></i> CONQUISTAS EM DESTAQUE
+                        </div>
+                        <button class="btn font-tech btn-sm border-theme text-theme" style="background: color-mix(in srgb, var(--theme-color) 5%, transparent);" data-bs-toggle="modal" data-bs-target="#modalConquistas">
+                            <i class="bi bi-sliders"></i> GALERIA
+                        </button>
+                    </div>
+                    <div class="p-3">
+                        <div class="destaque-slots d-flex gap-3" id="preview-build-atual" data-max="{{ max_destaques }}">
+                            {% for pa in conquistas_em_destaque %}
+                                <div class="achievement-item em-destaque rarity-{{ pa.achievement.raridade }}" 
+                                    title="{{ pa.achievement.nome }} | {{ pa.achievement.get_bonus_type_display }}: +{{ pa.achievement.bonus_value }}">
+                                    {% if pa.achievement.imagem %}
+                                        <img src="{% static pa.achievement.imagem %}" class="ach-img">
+                                    {% else %}
+                                        <i class="bi bi-award-fill ach-icon"></i>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+ 
+                {# ── INVENTÁRIO & CARTEIRA ── #}
+                <div class="cyber-card mb-4">
+                    <div class="cyber-header d-flex justify-content-between align-items-center">
+                        <div class="cyber-title"><i class="bi bi-wallet2 text-theme me-2"></i> CARTEIRA & MOCHILA</div>
+                        <button class="btn btn-outline-info font-tech btn-sm border-theme text-theme" data-bs-toggle="modal" data-bs-target="#modalInventario">
+                            <i class="bi bi-backpack2"></i> ABRIR MOCHILA
+                        </button>
+                    </div>
+                    <div class="p-3">
+                        <div class="wallet-display mb-0" style="clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);">
+                            <div class="wallet-info">
+                                <span class="wallet-label font-tech text-uppercase" style="color: rgba(252,238,10,0.6); letter-spacing: 2px;">SALDO ATUAL</span>
+                                <span class="wallet-value font-tech" style="font-size: 1.5rem; color: var(--neon-gold); text-shadow: 0 0 12px rgba(252,238,10,0.6);">{{ player.coins }} <small>⬡</small></span>
+                            </div>
+                            <i class="bi bi-safe wallet-icon"></i>
+                        </div>
+                    </div>
+                </div>
+
                 {# ── MATRIZ DE SISTEMA & BUFFS ── #}
                 <div class="cyber-card mb-4">
                     <div class="cyber-header">
@@ -254,50 +294,6 @@
                     </div>
                 </div>
 
-                {# ── BUILD ATUAL (CONQUISTAS EQUIPADAS) ── #}
-                <div class="cyber-card">
-                    <div class="cyber-header d-flex justify-content-between align-items-center">
-                        <div class="cyber-title">
-                            <i class="bi bi-cpu text-theme me-2"></i> CONQUISTAS EM DESTAQUE
-                        </div>
-                        <button class="btn btn-outline-info font-tech btn-sm border-theme" data-bs-toggle="modal" data-bs-target="#modalConquistas">
-                            <i class="bi bi-sliders"></i> GALERIA
-                        </button>
-                    </div>
-                    <div class="p-3">
-                        <div class="destaque-slots d-flex gap-3" id="preview-build-atual" data-max="{{ max_destaques }}">
-                            {% for pa in conquistas_em_destaque %}
-                                <div class="achievement-item em-destaque rarity-{{ pa.achievement.raridade }}" 
-                                    title="{{ pa.achievement.nome }} | {{ pa.achievement.get_bonus_type_display }}: +{{ pa.achievement.bonus_value }}">
-                                    {% if pa.achievement.imagem %}
-                                        <img src="{% static pa.achievement.imagem %}" class="ach-img">
-                                    {% else %}
-                                        <i class="bi bi-award-fill ach-icon"></i>
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
- 
-                {# ── INVENTÁRIO & CARTEIRA ── #}
-                <div class="cyber-card mb-4">
-                    <div class="cyber-header d-flex justify-content-between align-items-center">
-                        <div class="cyber-title"><i class="bi bi-wallet2 text-theme me-2"></i> CARTEIRA & MOCHILA</div>
-                        <button class="btn btn-outline-info font-tech btn-sm border-theme text-theme" data-bs-toggle="modal" data-bs-target="#modalInventario">
-                            <i class="bi bi-backpack2"></i> ABRIR MOCHILA
-                        </button>
-                    </div>
-                    <div class="p-3">
-                        <div class="wallet-display mb-0" style="clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);">
-                            <div class="wallet-info">
-                                <span class="wallet-label font-tech text-uppercase" style="color: rgba(252,238,10,0.6); letter-spacing: 2px;">SALDO ATUAL</span>
-                                <span class="wallet-value font-tech" style="font-size: 1.5rem; color: var(--neon-gold); text-shadow: 0 0 12px rgba(252,238,10,0.6);">{{ player.coins }} <small>⬡</small></span>
-                            </div>
-                            <i class="bi bi-safe wallet-icon"></i>
-                        </div>
-                    </div>
-                </div>
 
             </div>{# Fecha col-lg-5 #}
         </div>{# Fecha row g-4 #}
@@ -352,65 +348,125 @@
 <script src="{% static 'js/profiles.js' %}"></script>
 
 {# ── Radar Chart ── #}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    const ctxRadar = document.getElementById('skillsRadarChart');
-    if (ctxRadar) {
-        const dataGlobal    = parseFloat("{{ bonus.matriz_radar.global_xp|stringformat:'f' }}") || 0;
-        const dataQuiz      = parseFloat("{{ bonus.matriz_radar.quiz_xp|stringformat:'f' }}") || 0;
-        const dataCodigo    = parseFloat("{{ bonus.matriz_radar.codigo_xp|stringformat:'f' }}") || 0;
-        const dataDecriptar = parseFloat("{{ bonus.matriz_radar.decriptar_xp|stringformat:'f' }}") || 0;
-        const dataPatrulha  = parseFloat("{{ bonus.matriz_radar.patrulha_xp|stringformat:'f' }}") || 0;
-        const dataMoedas    = parseFloat("{{ bonus.matriz_radar.moedas|stringformat:'f' }}") || 0;
+    window.RADAR_DATA = {
+        quiz: Number("{{ bonus.matriz_radar.quiz_xp }}".replace(',', '.')) || 0,
+        codigo: Number("{{ bonus.matriz_radar.codigo_xp }}".replace(',', '.')) || 0,
+        decriptar: Number("{{ bonus.matriz_radar.decriptar_xp }}".replace(',', '.')) || 0,
+        patrulha: Number("{{ bonus.matriz_radar.patrulha_xp }}".replace(',', '.')) || 0,
+        //moedas: Number("{{ bonus.matriz_radar.moedas }}".replace(',', '.')) || 0
+    };
+</script>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// ── FUNÇÃO AUXILIAR: HEX PARA RGBA ──
+function hexToRgba(hex, alpha) {
+    let c;
+    if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+        c = hex.substring(1).split('');
+        if(c.length == 3){ c = [c[0], c[0], c[1], c[1], c[2], c[2]]; }
+        c = '0x' + c.join('');
+        return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+    }
+    return `rgba(13, 202, 240, ${alpha})`; // fallback azul
+}
+
+const el = document.querySelector('.profile-page-wrapper');
+
+// ── GRÁFICO DE MATRIZ DE SKILLS (CHART.JS) ──
+document.addEventListener('DOMContentLoaded', function() {
+    const ctxRadar = document.getElementById('skillsRadarChart');
+    
+    // Captura a cor do tema dinamicamente baseada na classe do player
+    const wrapperElement = document.querySelector('.profile-page-wrapper');
+    const computedStyles = getComputedStyle(wrapperElement);
+    const themeColorHex = computedStyles.getPropertyValue('--theme-color').trim() || '#0dcaf0';
+
+    if (ctxRadar && window.RADAR_DATA) {
         new Chart(ctxRadar, {
             type: 'radar',
             data: {
-                labels: ['GLOBAL', 'CÓDIGO', 'DECRIPTAR', 'PATRULHA', 'MOEDAS', 'QUIZ'],
-                datasets: [{
-                    label: 'Bônus Atual (%)',
-                    data: [dataGlobal, dataCodigo, dataDecriptar, dataPatrulha, dataMoedas, dataQuiz],
-                    backgroundColor:        'rgba(13, 202, 240, 0.25)',
-                    borderColor:            'rgba(13, 202, 240, 0.9)',
-                    pointBackgroundColor:   'rgba(252, 238, 10, 1)',
-                    pointBorderColor:       '#000',
-                    pointHoverBackgroundColor: '#fff',
-                    pointHoverBorderColor:  'rgba(252, 238, 10, 1)',
-                    borderWidth: 2,
-                    pointRadius: 3,
-                }]
+                labels: ['CÓDIGO', 'DECRIPTAR', 'PATRULHA', 'QUIZ'],
+                datasets: [
+                    {
+                        label: 'Fundo',
+                        data: [2, 2, 2, 2, 2], 
+                        fill: true,
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        borderColor: 'transparent',
+                        pointRadius: 0,
+                        order: 2 
+                    },
+                    {
+                        label: 'Sinergia Atual',
+                        data: [
+                            window.RADAR_DATA.codigo, 
+                            window.RADAR_DATA.decriptar, 
+                            window.RADAR_DATA.patrulha, 
+                            //window.RADAR_DATA.moedas, 
+                            window.RADAR_DATA.quiz
+                        ],
+                        // Aplica as cores do tema dinamicamente
+                        backgroundColor: hexToRgba(themeColorHex, 0.45),
+                        borderColor: themeColorHex,      
+                        pointBackgroundColor: '#fff', 
+                        pointBorderColor: themeColorHex,
+                        pointHoverBackgroundColor: themeColorHex,
+                        pointHoverBorderColor: '#fff',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        fill: true,
+                        order: 1 
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'dataset',
+                    intersect: false
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
                         backgroundColor: 'rgba(10, 12, 20, 0.9)',
-                        titleFont: { family: "'Share Tech Mono', monospace", size: 12 },
-                        bodyFont:  { family: "'Share Tech Mono', monospace", size: 14 },
-                        bodyColor: '#0dcaf0',
-                        borderColor: 'rgba(13, 202, 240, 0.4)',
+                        titleFont: { family: "'Share Tech Mono', monospace", size: 13 },
+                        bodyFont: { family: "'Share Tech Mono', monospace", size: 14 },
+                        bodyColor: themeColorHex, // Tooltip com texto na cor da classe!
+                        borderColor: hexToRgba(themeColorHex, 0.4),
                         borderWidth: 1,
-                        callbacks: { label: ctx => ` +${ctx.raw}% de Bônus` }
+                        filter: function(tooltipItem) {
+                            return tooltipItem.datasetIndex === 1; 
+                        },
+                        callbacks: {
+                            title: function() { return '// ANÁLISE DA BUILD'; },
+                            label: function(context) {
+                                const label = context.chart.data.labels[context.dataIndex];
+                                return ` ${label}: +${context.raw}%`;
+                            }
+                        }
                     }
                 },
                 scales: {
                     r: {
-                        angleLines: { color: 'rgba(255,255,255,0.1)' },
-                        grid:        { color: 'rgba(13,202,240,0.15)', circular: false },
+                        angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)', circular: false },
                         pointLabels: {
-                            color: 'rgba(255,255,255,0.6)',
-                            font:  { family: "'Share Tech Mono', monospace", size: 10 }
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            font: { family: "'Share Tech Mono', monospace", size: 10, letterSpacing: '1px' }
                         },
-                        min: -5,
-                        suggestedMax: 30,
+                        min: 0, 
+                        suggestedMax: 100,
                         ticks: { display: false }
                     }
                 }
             }
         });
     }
+});
 </script>
 
 {# ── Log do Sistema: filtro + modal de depuração ── #}
@@ -634,5 +690,3 @@
 </style>
 
 {% endblock %}
-
-<div style="display:none" id="debug-raw">{{ system_logs_breakdowns_json }}</div>

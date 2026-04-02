@@ -743,15 +743,6 @@ def get_passive_bonus_xp_pct(user, fonte=None, contexto=None, retornar_breakdown
 
     total = round(bonus_total, 2)
 
-    # Prints de debug mantidos
-    print(f"\n{'─'*60}")
-    print(f"[PASSIVO DEBUG] {user.username} | fonte={fonte}")
-    for b in breakdown:
-        status = f"+{b['pct']}%" if b['ativo'] else "inativo"
-        print(f"  [{b['tipo']}] {b['fonte']} → {status} | {b['motivo']}")
-    print(f"[PASSIVO DEBUG] Total: +{total}%")
-    print(f"{'─'*60}\n")
-
     return (total, breakdown) if retornar_breakdown else total
 
 

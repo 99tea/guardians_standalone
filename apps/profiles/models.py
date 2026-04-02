@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 
 class Player(models.Model):
     CLASSE_CHOICES = [
+        ('none',      'Sem Classe'),
         ('guardian',  'Guardian'),
         ('analyst',   'Analyst'),
         ('sentinel',  'Sentinel'),
@@ -197,9 +198,13 @@ class PlayerNotification(models.Model):
 # ─────────────────────────────────────────────
 
 class ClasseConfig(models.Model):
+    custo_primeira_classe = models.PositiveIntegerField(
+        default=0, # Deixe 0 se quiser que a primeira vez seja de graça, ou coloque um valor
+        help_text='Custo em coins para o player escolher a classe pela primeira vez'
+    )
     custo_troca_coins = models.PositiveIntegerField(
         default=500,
-        help_text='Custo em coins para trocar de classe'
+        help_text='Custo em coins para trocar de classe posteriormente'
     )
 
     class Meta:
@@ -207,8 +212,8 @@ class ClasseConfig(models.Model):
         verbose_name_plural = 'Config — Troca de Classe'
 
     def __str__(self):
-        return f'Troca de classe: {self.custo_troca_coins} coins'
-
+        return f'1ª Escolha: {self.custo_primeira_classe} | Troca: {self.custo_troca_coins}'
+    
     @classmethod
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)

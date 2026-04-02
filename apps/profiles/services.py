@@ -149,13 +149,6 @@ def calcular_xp_com_bonus(user, xp_base, fonte, contexto=None):
     xp_bonus = int(xp_base * bonus_pct / 100)
     xp_final = xp_base + xp_bonus
 
-    print(f"\n{'='*60}")
-    print(f"[XP DEBUG] {user.username} | fonte={fonte} | base={xp_base}")
-    for b in breakdown:
-        print(f"  + {b['fonte']} [{b['categoria']}]: +{b['pct']}% = +{b['xp_adicionado']} XP")
-    print(f"  TOTAL BÔNUS: +{bonus_pct}% | XP FINAL: {xp_final}")
-    print(f"{'='*60}\n")
-
     return xp_final, xp_bonus, breakdown
 
 
@@ -250,10 +243,12 @@ def _notificar_perks_desbloqueados(user, classe, nivel):
 @transaction.atomic
 def trocar_classe(user, nova_classe):
     """
-    Troca a classe do player deduzindo coins.
+    Troca a classe do player deduzindo coins baseando-se se é primeira escolha ou troca.
     Retorna (sucesso, mensagem).
     """
     from .models import ClasseConfig, PlayerNotification
+    from django.utils import timezone
+    
     player = getattr(user, 'player', None)
     if not player:
         return False, 'Perfil não encontrado.'
@@ -266,21 +261,34 @@ def trocar_classe(user, nova_classe):
         return False, 'Você já pertence a esta classe.'
 
     config = ClasseConfig.get()
-    if player.coins < config.custo_troca_coins:
-        return False, f'Coins insuficientes. Necessário: {config.custo_troca_coins} ⬡'
+    
+    # Valida se é a primeira escolha
+    is_primeira_vez = (player.classe == 'none')
+    custo = config.custo_primeira_classe if is_primeira_vez else config.custo_troca_coins
+
+    if player.coins < custo:
+        return False, f'Coins insuficientes. Necessário: {custo} ⬡'
 
     classe_antiga = player.get_classe_display()
-    player.coins           -= config.custo_troca_coins
-    player.classe           = nova_classe
-    player.classe_trocada_em = timezone.now()
+    
+    # Aplica as mudanças
+    player.coins             -= custo
+    player.classe             = nova_classe
+    player.classe_trocada_em  = timezone.now()
     player.save()
+
+    # Define a mensagem dependendo do contexto
+    if is_primeira_vez:
+        mensagem_log = f'Você definiu sua classe e se juntou aos {player.get_classe_display()}.'
+    else:
+        mensagem_log = f'Você deixou os {classe_antiga} e se juntou aos {player.get_classe_display()}.'
 
     PlayerNotification.objects.create(
         player   = user,
         tipo     = 'sistema',
-        titulo   = f'Classe alterada para {player.get_classe_display()}',
-        mensagem = f'Você deixou os {classe_antiga} e se juntou aos {player.get_classe_display()}.',
-        icone    = 'bi-person-badge-fill',
+        titulo   = f'Classe definida: {player.get_classe_display()}',
+        mensagem = mensagem_log,
+        icone    = 'bi-diagram-3-fill',
     )
 
     return True, f'Bem-vindo aos {player.get_classe_display()}!'
