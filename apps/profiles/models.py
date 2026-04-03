@@ -506,3 +506,57 @@ class SystemLog(models.Model):
 
     def __str__(self):
         return f'{self.player.username} [{self.tipo}] {self.titulo}'
+    
+
+# ─────────────────────────────────────────────
+# RECONHECIMETO E INFRAÇÃO
+# ─────────────────────────────────────────────    
+
+class EventoPontos(models.Model):
+    TIPO_CHOICES = [
+        ('recognition', '⭐ Reconhecimento'),
+        ('infraction',  '⚠️ Infração'),
+    ]
+
+    player    = models.ForeignKey(User, on_delete=models.CASCADE, related_name='eventos_pontos')
+    tipo      = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    xp_valor  = models.PositiveIntegerField(help_text='Valor absoluto de XP (nunca negativo)')
+    descricao = models.CharField(max_length=300)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    criado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, 
+                                   related_name='eventos_criados')
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if not is_new:
+            return  # só aplica na criação
+
+        from apps.profiles.models import SystemLog  # ajuste o import
+        player = getattr(self.player, 'player', None)
+        if not player:
+            return
+
+        if self.tipo == 'infraction':
+            delta = -self.xp_valor
+            player.xp_total = max(0, player.xp_total + delta)
+            tipo_log = 'xp_loss'
+        else:
+            delta = self.xp_valor
+            player.xp_total += delta
+            tipo_log = 'xp_gain'
+
+        player.save()
+
+        SystemLog.objects.create(
+            player    = self.player,
+            tipo      = tipo_log,
+            titulo    = f'{"Infração" if self.tipo == "infraction" else "Reconhecimento"} — {self.descricao[:60]}',
+            descricao = self.descricao,
+            xp_delta  = delta,
+        )
+
+    class Meta:
+        verbose_name = 'Evento de Pontos'
+        verbose_name_plural = 'Eventos de Pontos'
+        ordering = ['-criado_em']

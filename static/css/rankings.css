@@ -385,14 +385,14 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    gap: 8px;
-    padding: 32px 16px 0;
-    margin-bottom: 4px;
-    position: relative;
+    gap: 16px;
+    padding: 40px 16px 0;
+    margin-bottom: 20px;
+    width: 100%;
 }
 
 /* Reordena: 2º à esquerda, 1º centro, 3º direita */
-.podium-card.pos-1 { order: 2; }
+.podium-card.pos-1 { order: 2; transform: scale(1.05); z-index: 10; }
 .podium-card.pos-2 { order: 1; }
 .podium-card.pos-3 { order: 3; }
 
@@ -430,47 +430,54 @@
 
 /* Avatar */
 .podium-avatar {
-    width: 64px; height: 64px;
-    border-radius: 3px;
-    overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.8rem;
+    width: 90px;
+    height: 90px;
     position: relative;
-    margin-bottom: 8px;
-    /* placeholder para cosmético: fundo de avatar */
-    background: var(--avatar-bg, rgba(13,202,240,0.08));
+    background: #000;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    clip-path: polygon(15% 0, 85% 0, 100% 15%, 100% 85%, 85% 100%, 15% 100%, 0 85%, 0 15%);
 }
-.pos-1 .podium-avatar {
-    width: 78px; height: 78px;
-    border: 2px solid var(--gold-1);
-    box-shadow: 0 0 20px rgba(252,238,10,0.4), 0 0 0 1px rgba(252,238,10,0.15);
+
+.pos-1 .podium-avatar { width: 120px; height: 120px; border: 4px solid var(--gold-1); filter: drop-shadow(0 0 15px rgba(252, 238, 10, 0.5)); }
+.pos-2 .podium-avatar { border: 3px solid var(--gold-2); filter: drop-shadow(0 0 10px rgba(192, 192, 192, 0.4)); }
+.pos-3 .podium-avatar { border: 3px solid var(--gold-3); filter: drop-shadow(0 0 10px rgba(205, 127, 50, 0.4)); }
+
+.podium-avatar .avatar-bg-layer,
+.podium-avatar .avatar-img,
+.podium-avatar .cosmetic-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
-.pos-2 .podium-avatar {
-    border: 2px solid var(--gold-2);
-    box-shadow: 0 0 12px rgba(192,192,192,0.3);
-}
-.pos-3 .podium-avatar {
-    border: 2px solid var(--gold-3);
-    box-shadow: 0 0 12px rgba(205,127,50,0.3);
-}
-.podium-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.podium-avatar .avatar-img { z-index: 2; object-fit: cover; }
+.podium-avatar .avatar-bg-layer { z-index: 1; }
+.podium-avatar .cosmetic-frame { z-index: 3; border-width: 2px; }
+
 .podium-avatar i { color: rgba(255,255,255,0.2); }
 
-/* Titulo honorário (placeholder cosmético) */
-.podium-title-badge {
-    font-family: var(--tech-font);
-    font-size: 0.42rem;
-    letter-spacing: 2px;
-    padding: 2px 8px;
-    border-radius: 2px;
-    margin-bottom: 4px;
-    /* visível apenas se o player tiver título */
-    display: none;
+/* Título embaixo do frame no pódio */
+.podium-honor-title {
+    font-size: 0.6rem !important;
+    padding: 4px 10px !important;
+    min-width: auto !important;
+    margin-bottom: 8px;
+    background: rgba(0,0,0,0.6);
+    display: inline-block;
+    text-align: center;
 }
+
+
 .podium-card[data-title] .podium-title-badge { display: block; }
 .pos-1 .podium-title-badge { color: var(--gold-1); border: 1px solid rgba(252,238,10,0.4); background: rgba(252,238,10,0.07); }
 .pos-2 .podium-title-badge { color: var(--gold-2); border: 1px solid rgba(192,192,192,0.3); background: rgba(192,192,192,0.05); }
 .pos-3 .podium-title-badge { color: var(--gold-3); border: 1px solid rgba(205,127,50,0.3); background: rgba(205,127,50,0.05); }
+
+
 
 /* Info */
 .podium-info { text-align: center; margin-bottom: 6px; }
@@ -619,18 +626,34 @@
     min-width: 0;
 }
 .rank-avatar {
-    width: 36px; height: 36px;
-    border-radius: 2px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.08);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    font-size: 1rem;
-    color: rgba(255,255,255,0.2);
-    /* placeholder para cosmético: fundo de avatar */
-    background: var(--avatar-bg, rgba(13,202,240,0.04));
+    width: 48px; /* Aumentado para ver a skin */
+    height: 48px;
+    position: relative;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    clip-path: polygon(15% 0, 85% 0, 100% 15%, 100% 85%, 85% 100%, 15% 100%, 0 85%, 0 15%);
 }
-.rank-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.rank-avatar .avatar-bg-layer,
+.rank-avatar .avatar-img,
+.rank-avatar .cosmetic-frame {
+    position: absolute;
+    inset: 0;
+}
+
+.rank-avatar .avatar-img { z-index: 2; object-fit: cover; }
+.rank-avatar .avatar-bg-layer { z-index: 1; }
+.rank-avatar .cosmetic-frame { z-index: 3; border-width: 2px; }
+.rank-avatar .cosmetic-frame-icon { display: none; }
+
+.rank-title-quote {
+    font-size: 0.65rem;
+    font-style: italic;
+    margin-left: 6px;
+    opacity: 0.8;
+    font-family: var(--tech-font);
+}
 
 .rank-player-info { min-width: 0; }
 .rank-name {
@@ -706,3 +729,57 @@
     .rank-valor { padding-right: 24px; }
     .countdown-num { font-size: 1.8rem; }
 }
+
+/* ── Título cosmético no pódio ── */
+.podium-title-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 1.5px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid currentColor;
+    margin-bottom: 6px;
+    display: inline-block;
+}
+
+/* ── Frame no pódio ── */
+.podium-avatar { position: relative; }
+
+.podium-avatar-frame {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    pointer-events: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 3px;
+    z-index: 2;
+}
+
+/* ── Frame na tabela ── */
+.rank-avatar-frame {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    pointer-events: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 1px;
+    z-index: 2;
+}
+
+/* ── Cores de raridade para títulos ── */
+.rarity-text-common { color: #aaaaaa; }
+.rarity-text-rare   { color: #0dcaf0; }
+.rarity-text-epic   { color: #bd00ff; }
+
+/* ── Título na tabela ── */
+.rank-honor-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    opacity: 0.85;
+} 

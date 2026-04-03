@@ -8,9 +8,11 @@ from django.contrib import messages
 from django.http import JsonResponse
 import json
 from apps.profiles.services import registrar_desafio_diario , grant_xp, grant_coins
-from .models import (Quiz, QuizAttempt, QuizQuestion, QuizOption, PatrolAttempt, PasswordGameConfig, 
+from .models import (Quiz, QuizAttempt, QuizQuestion, QuizOption, PatrolAttempt, PasswordGameConfig, PatrolConfig,
                         PasswordAttempt, DecriptarConfig, DecriptarAttempt, CodigoAttempt, CodigoConfig, WordBank)
 from .password_rules import generate_rules_sequence, get_rules_details, validate_password
+from datetime import timedelta
+
 
 
 ################
@@ -165,12 +167,6 @@ def quiz_result(request, quiz_id):
 ################
 ###VIEW PATROL###
 ################
-MAX_PATROL_ATTEMPTS = 10
-PATROL_XP_BASE      = 100
-PATROL_COIN_MIN     = 10
-PATROL_COIN_MAX     = 20
-
-
 def _calc_feedback(secret, guess):
     """Retorna lista de 4 status para cada dígito do palpite."""
     feedback   = ['absent'] * 4
@@ -198,11 +194,27 @@ def _calc_feedback(secret, guess):
 @login_required
 def patrol_start(request):
     """Inicia ou retoma a patrulha do dia."""
-    today   = timezone.localdate()
-    attempt = PatrolAttempt.objects.filter(player=request.user, date=today).first()
+    today      = timezone.localdate()
+    week_start = today - timedelta(days=6)  # janela de 7 dias (hoje incluso)
+    attempt    = PatrolAttempt.objects.filter(player=request.user, date=today).first()
+    config = PatrolConfig.objects.first()
+    if not config:
+        config = PatrolConfig()  # usa os defaults sem salvar
 
     if attempt and attempt.completed:
         return JsonResponse({'status': 'error', 'message': 'Patrulha já realizada hoje.'}, status=400)
+
+    patrulhas_na_semana = PatrolAttempt.objects.filter(
+        player=request.user,
+        date__range=(week_start, today),
+        completed=True,
+    ).count()
+
+    if patrulhas_na_semana >= config.patrol_limit:
+        return JsonResponse({
+            'status':  'error',
+            'message': 'Limite semanal atingido. Você já realizou 5 patrulhas nos últimos 7 dias.',
+        }, status=400)
 
     if attempt:
         # Retoma sessão em andamento
@@ -226,6 +238,14 @@ def patrol_guess(request):
     import json
     body  = json.loads(request.body)
     guess = body.get('guess', '').strip()
+    config = PatrolConfig.objects.first()
+    if not config:
+        config = PatrolConfig()  # usa os defaults sem salvar
+
+    MAX_PATROL_ATTEMPTS = config.max_attempts
+    PATROL_XP_BASE      = config.xp_base
+    PATROL_COIN_MIN     = config.coin_min
+    PATROL_COIN_MAX     = config.coin_max
 
     if len(guess) != 4 or not guess.isdigit():
         return JsonResponse({'status': 'error', 'message': 'Digite 4 números.'}, status=400)
@@ -362,6 +382,7 @@ def password_game_submit(request, attempt_id):
     if attempt.remaining_seconds() == 0 and PasswordGameConfig.get().time_limit_seconds:
         attempt.completed_at = timezone.now()
         attempt.is_won       = False
+        attempt.timer_expired = True
         attempt.save()
         return JsonResponse({'status': 'timeout', 'redirect': f'/minigames/cofre/{attempt.pk}/resultado/'})
 
@@ -402,6 +423,7 @@ def password_game_abandon(request, attempt_id):
     if not attempt.completed_at:
         attempt.completed_at = timezone.now()
         attempt.is_won       = False
+        attempt.abandoned    = True
         attempt.save()
     return JsonResponse({'status': 'abandoned', 'redirect': f'/minigames/cofre/{attempt.pk}/resultado/'})
 
@@ -712,16 +734,20 @@ def start_codigo(request):
     # Seleciona palavra — retorna objeto WordBank
     word_obj = config.select_word()
     if not word_obj:
-        messages.error(request, f'Nenhuma palavra de {config.word_length} letras no banco. Avise o administrador.')
+        messages.error(request, 'Nenhuma palavra disponível no banco. Avise o administrador.')
         return redirect('challenges:index')
 
+    max_attempts = CodigoConfig.attempts_for_length(len(word_obj.palavra))
+
     CodigoAttempt.objects.create(
-        player      = request.user,
-        config      = config,
-        date        = today,
-        secret_word = word_obj.palavra, 
-        guesses     = [],
+        player       = request.user,
+        config       = config,
+        date         = today,
+        secret_word  = word_obj.palavra,
+        max_attempts = max_attempts,   # salvo na tentativa
+        guesses      = [],
     )
+
     return redirect('minigames:play_codigo')
 
 
@@ -756,7 +782,7 @@ def play_codigo(request):
         'attempt':        attempt,
         'config':         config,
         'word_length':    len(attempt.secret_word),
-        'max_attempts':   config.max_attempts,
+        'max_attempts':   attempt.max_attempts,
         'remaining_time': attempt.remaining_seconds(),
         'guesses_payload': guesses_payload,
         'xp_reward':      config.xp_reward,
@@ -812,7 +838,7 @@ def check_codigo_guess(request):
         return JsonResponse({'error': 'Apenas letras são permitidas.'}, status=400)
 
     # Verifica se já atingiu máximo de tentativas
-    if len(attempt.guesses) >= config.max_attempts:
+    if len(attempt.guesses) >= attempt.max_attempts:
         return JsonResponse({'error': 'Limite de tentativas atingido.'}, status=400)
 
     # Calcula feedback server-side
@@ -825,7 +851,7 @@ def check_codigo_guess(request):
     attempt.guesses = guesses
 
     attempts_used = len(guesses)
-    game_over     = is_winner or attempts_used >= config.max_attempts
+    game_over     = is_winner or attempts_used >= attempt.max_attempts
 
     if game_over:
         attempt.won          = is_winner
@@ -833,7 +859,7 @@ def check_codigo_guess(request):
 
         if is_winner:
             # XP cheio se acertou em até metade das tentativas, 50% depois
-            half = config.max_attempts // 2
+            half = attempt.max_attempts // 2
             xp   = config.xp_reward if attempts_used <= half else config.xp_reward // 2
             attempt.xp_earned    = xp
             attempt.coins_earned = config.coin_reward
@@ -871,7 +897,7 @@ def check_codigo_guess(request):
 @login_required
 def codigo_result(request, attempt_id):
     attempt    = get_object_or_404(CodigoAttempt, pk=attempt_id, player=request.user)
-    is_perfect = attempt.won and len(attempt.guesses) <= attempt.config.max_attempts // 2
+    is_perfect = attempt.won and len(attempt.guesses) <= attempt.max_attempts // 2
     xp_result = request.session.pop('last_xp_result', None)
 
     return render(request, 'minigames/codigo_result.html', {

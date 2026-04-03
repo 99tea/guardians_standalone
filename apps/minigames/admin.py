@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.contrib import messages
 
 from .models import (Quiz, QuizQuestion, QuizOption, QuizAttempt, MiniGameContent, PatrolAttempt, PasswordGameConfig, PasswordAttempt,
-                     WordBank, DecriptarConfig, DecriptarAttempt, CodigoConfig, CodigoAttempt)
+                     WordBank, DecriptarConfig, DecriptarAttempt, CodigoConfig, CodigoAttempt, PatrolConfig )
 
 ################
 ###ADMIN QUIZ###
@@ -65,12 +65,32 @@ class MiniGameContentAdmin(admin.ModelAdmin):
 ## ADMIN PATROL ##
 ##################
 
+@admin.register(PatrolConfig)
+class PatrolConfigAdmin(admin.ModelAdmin):
+    fieldsets = (
+        ('Recompensas', {
+            'fields': ('xp_base', 'coin_min', 'coin_max')
+        }),
+        ('Regras', {
+            'fields': ('max_attempts', 'patrol_limit'),
+            'description': 'patrol_limit = máx. de patrulhas em uma janela de 7 dias',
+        }),
+    )
+
+    def has_add_permission(self, request):
+        return not PatrolConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(PatrolAttempt)
 class PatrolAttemptAdmin(admin.ModelAdmin):
-    list_display  = ('player', 'date', 'won', 'attempts_count', 'xp_earned', 'coins_earned', 'completed')
-    list_filter   = ('won', 'completed', 'date')
-    readonly_fields = ('player', 'date', 'secret', 'guesses', 'attempts_count', 'xp_earned', 'coins_earned', 'started_at', 'completed_at')
-    actions       = ['resetar_patrulha']
+    list_display    = ('player', 'date', 'won', 'attempts_count', 'xp_earned', 'coins_earned', 'completed')
+    list_filter     = ('won', 'completed', 'date')
+    readonly_fields = ('player', 'date', 'secret', 'guesses', 'attempts_count',
+                       'xp_earned', 'coins_earned', 'started_at', 'completed_at')
+    actions         = ['resetar_patrulha']
 
     @admin.action(description='🗑️ Resetar patrulha — libera para refazer hoje')
     def resetar_patrulha(self, request, queryset):
@@ -204,10 +224,6 @@ class CodigoConfigAdmin(admin.ModelAdmin):
         }),
         ('Timer', {
             'fields': ('time_limit_seconds',)
-        }),
-        ('Configuração da Palavra', {
-            'fields': ('word_length', 'max_attempts'),
-            'description': 'O sistema selecionará automaticamente palavras do banco com o comprimento e dificuldade definidos.'
         }),
         ('Disponibilidade', {
             'fields': ('ativo', ('day_seg', 'day_ter', 'day_qua', 'day_qui', 'day_sex', 'day_sab', 'day_dom')),
