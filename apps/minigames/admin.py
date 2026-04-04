@@ -107,12 +107,13 @@ class PatrolAttemptAdmin(admin.ModelAdmin):
 class PasswordGameConfigAdmin(admin.ModelAdmin):
     list_display = ('time_limit_seconds', 'xp_reward', 'coin_reward',
                     'rules_count_easy', 'rules_count_medium', 'rules_count_hard',
-                    'active_days', 'ativo')
+                    'rules_count_insane', 'rules_count_math', 'active_days', 'ativo')
     fieldsets = (
         ('Recompensas', {'fields': ('xp_reward', 'coin_reward', 'ativo')}),
         ('Timer', {'fields': ('time_limit_seconds',)}),
         ('Qtd. de Regras por Dificuldade', {'fields': (
-            'rules_count_easy', 'rules_count_medium', 'rules_count_hard'
+            'rules_count_easy', 'rules_count_medium', 'rules_count_hard', 
+            'rules_count_insane', 'rules_count_math'
         )}),
         ('Disponibilidade', {'fields': ('active_days',),
             'description': '0=Seg, 1=Ter, 2=Qua, 3=Qui, 4=Sex, 5=Sab, 6=Dom'}),
@@ -179,8 +180,8 @@ class DecriptarConfigAdmin(admin.ModelAdmin):
         ('Recompensas', {
             'fields': ('xp_per_word', 'coin_reward')
         }),
-        ('Timer', {
-            'fields': ('time_limit_seconds',)
+        ('Timer e Penalidades', { # <-- Atualizado aqui
+            'fields': ('time_limit_seconds', 'hint_time_penalty_pct')
         }),
         ('Dificuldade — Qtd. de Palavras por Sessão', {
             'fields': ('words_count_easy', 'words_count_medio', 'words_count_hard', 'max_lives')
@@ -222,16 +223,15 @@ class CodigoConfigAdmin(admin.ModelAdmin):
         ('Recompensas', {
             'fields': ('xp_reward', 'coin_reward')
         }),
-        ('Timer', {
-            'fields': ('time_limit_seconds',)
+        ('Timer e Penalidades', { # <-- Atualizado aqui
+            'fields': ('time_limit_seconds', 'hint_time_penalty_pct')
         }),
         ('Disponibilidade', {
             'fields': ('ativo', ('day_seg', 'day_ter', 'day_qua', 'day_qui', 'day_sex', 'day_sab', 'day_dom')),
         }),
     )
-
     def has_add_permission(self, request):
-        return not CodigoConfig.objects.exists()
+        return not CodigoConfig.objects.exists() 
 
     def has_delete_permission(self, request, obj=None):
         return False

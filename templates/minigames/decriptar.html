@@ -10,7 +10,7 @@
 {% block content %}
 <div id="decriptar-container"
      data-attempt-id="{{ attempt.id }}"
-     data-max-lives="{{ config.max_lives }}"
+     data-max-lives="{{ attempt.lives_remaining }}"
      data-timer="{{ remaining_time }}"
      data-total="{{ total_words }}"
      data-correct="{{ correct_count }}">

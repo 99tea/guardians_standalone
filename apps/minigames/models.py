@@ -160,6 +160,9 @@ class QuizAttempt(models.Model):
     abandoned       = models.BooleanField(default=False)
     timer_expired   = models.BooleanField(default=False)
     used_retake_token = models.BooleanField(default=False)
+    bonus_seconds = models.PositiveIntegerField(default=0)
+    penalty_seconds = models.PositiveIntegerField(default=0)
+
 
     class Meta:
         verbose_name = 'Tentativa de Quiz'
@@ -175,14 +178,10 @@ class QuizAttempt(models.Model):
         return self.completed_at is not None
 
     def remaining_seconds(self):
-        """Calcula tempo restante com base no servidor — anti-cheat."""
         if not self.quiz.time_limit_seconds:
             return 0
-        from datetime import timezone as dt_tz
         elapsed = (timezone.now() - self.started_at).total_seconds()
-        remaining = self.quiz.time_limit_seconds - elapsed
-        return max(0, int(remaining))
-    
+        return max(0, int(self.quiz.time_limit_seconds - elapsed - self.penalty_seconds + self.bonus_seconds))
 
 # ─────────────────────────────────────────────
 # PATRULHA DIÁRIA (Codebreaker)
@@ -242,6 +241,8 @@ class PasswordGameConfig(models.Model):
     rules_count_easy    = models.PositiveSmallIntegerField(default=2)
     rules_count_medium  = models.PositiveSmallIntegerField(default=2)
     rules_count_hard    = models.PositiveSmallIntegerField(default=1)
+    rules_count_insane    = models.PositiveSmallIntegerField(default=1)
+    rules_count_math    = models.PositiveSmallIntegerField(default=1)
     active_days         = models.CharField(
         max_length=20, default='0,1,2,3,4,5,6',
         help_text='Dias da semana separados por vírgula (0=Seg, 6=Dom)'
@@ -282,6 +283,9 @@ class PasswordAttempt(models.Model):
     input_password  = models.CharField(max_length=500, blank=True)
     abandoned     = models.BooleanField(default=False)
     timer_expired = models.BooleanField(default=False)
+    bonus_seconds = models.PositiveIntegerField(default=0)
+    penalty_seconds = models.PositiveIntegerField(default=0)
+
 
     class Meta:
         verbose_name = 'Tentativa: Cofre de Senhas'
@@ -297,7 +301,7 @@ class PasswordAttempt(models.Model):
         if not config.time_limit_seconds:
             return 0
         elapsed = (timezone.now() - self.started_at).total_seconds()
-        return max(0, int(config.time_limit_seconds - elapsed))
+        return max(0, int(config.time_limit_seconds - elapsed - self.penalty_seconds + self.bonus_seconds))
     
 # ─────────────────────────────────────────────
 # DECRIPTAR (Anagrama)
@@ -313,6 +317,7 @@ class DecriptarConfig(models.Model):
     words_count_hard   = models.PositiveSmallIntegerField(default=1, verbose_name='Palavras difíceis / sessão')
     max_lives          = models.PositiveSmallIntegerField(default=3)
     ativo              = models.BooleanField(default=True)
+    hint_time_penalty_pct = models.PositiveSmallIntegerField(default=15, help_text='Penalidade de tempo (%) ao usar dica')
 
     # Dias da semana (booleanos — mais amigável no admin)
     day_seg = models.BooleanField(default=True,  verbose_name='Segunda-feira')
@@ -365,6 +370,9 @@ class DecriptarAttempt(models.Model):
     timer_expired   = models.BooleanField(default=False)
     started_at      = models.DateTimeField(auto_now_add=True)
     completed_at    = models.DateTimeField(null=True, blank=True)
+    penalty_seconds = models.PositiveIntegerField(default=0)
+    free_hint_used  = models.BooleanField(default=False) 
+    bonus_seconds = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ('player', 'date')
@@ -379,7 +387,7 @@ class DecriptarAttempt(models.Model):
         if not self.config.time_limit_seconds:
             return 0
         elapsed = (timezone.now() - self.started_at).total_seconds()
-        return max(0, int(self.config.time_limit_seconds - elapsed))
+        return max(0, int(self.config.time_limit_seconds - elapsed - self.penalty_seconds + self.bonus_seconds))
 
     @property
     def is_completed(self):
@@ -397,6 +405,7 @@ class CodigoConfig(models.Model):
     xp_reward          = models.PositiveSmallIntegerField(default=200)
     coin_reward        = models.PositiveSmallIntegerField(default=20)
     ativo              = models.BooleanField(default=True)
+    hint_time_penalty_pct = models.PositiveSmallIntegerField(default=15, help_text='Penalidade de tempo (%) ao usar dica')
     day_seg = models.BooleanField(default=False, verbose_name='Segunda-feira')
     day_ter = models.BooleanField(default=True,  verbose_name='Terça-feira')
     day_qua = models.BooleanField(default=False, verbose_name='Quarta-feira')
@@ -477,6 +486,9 @@ class CodigoAttempt(models.Model):
     started_at   = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     max_attempts = models.PositiveSmallIntegerField(default=6)
+    penalty_seconds = models.PositiveIntegerField(default=0)
+    free_hint_used  = models.BooleanField(default=False)
+    bonus_seconds = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ('player', 'date', 'config')
@@ -491,7 +503,8 @@ class CodigoAttempt(models.Model):
         if not self.config.time_limit_seconds:
             return 0
         elapsed = (timezone.now() - self.started_at).total_seconds()
-        return max(0, int(self.config.time_limit_seconds - elapsed))
+        # Soma o bônus e desconta as penalidades de dicas
+        return max(0, int(self.config.time_limit_seconds - elapsed - self.penalty_seconds + self.bonus_seconds))
 
     @property
     def is_completed(self):

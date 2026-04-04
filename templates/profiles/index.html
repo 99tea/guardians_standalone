@@ -89,8 +89,8 @@
                     <div class="tech-progress-bar" style="width: {% widthratio player.xp_no_nivel_atual player.xp_necessario_nivel_atual 100 %}%;"></div>
                 </div>
                 <div class="xp-numbers font-tech">
-                    <span>XP ATUAL: {{ player.xp_no_nivel_atual }}</span>
-                    <span>PRÓX: {{ player.xp_necessario_nivel_atual }}</span>
+                    <span>XP TOTAL: {{ player.xp_total }}</span>
+                    <span>PRÓX LVL: {{ player.xp_no_nivel_atual }}/{{ player.xp_necessario_nivel_atual }}</span>
                 </div>
             </div>
 

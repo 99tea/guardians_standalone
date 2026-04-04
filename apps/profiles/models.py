@@ -473,22 +473,15 @@ class PlayerBattlePass(models.Model):
 
 class SystemLog(models.Model):
     TIPO_CHOICES = [
-        ('xp_gain',       'Ganho de XP'),
-        ('xp_loss',       'Perda de XP'),
-        ('level_up',      'Level Up'),
-        ('coin_gain',     'Ganho de Moedas'),
-        ('coin_loss',     'Perda de Moedas'),
-        ('item_purchase', 'Compra de Item'),
-        ('item_sell',     'Venda de Item'),
-        ('item_activate', 'Ativação de Consumível'),
-        ('store_reroll',  'Reroll da Loja'),
-        ('achievement',   'Conquista Desbloqueada'),
-        ('mission_claim', 'Missão Resgatada'),
-        ('battle_pass',   'Recompensa Battle Pass'),
-        ('classe_change', 'Troca de Classe'),
-        ('system',        'Sistema'),
+    ('xp_global',    'Bônus XP Global (%)'),
+    ('xp_quiz',      'Bônus XP em Quiz (%)'),
+    ('xp_decriptar', 'Bônus XP em Decriptar (%)'),
+    ('xp_codigo',    'Bônus XP em Código (%)'),
+    ('xp_password',  'Bônus XP em Cofre de Senhas (%)'),
+    ('coin_bonus',   'Bônus de Moedas (%)'),
+    ('add_time',     'Tempo Extra em Desafios (segundos)'),
     ]
-
+    
     player     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='system_logs')
     tipo       = models.CharField(max_length=20, choices=TIPO_CHOICES)
     titulo     = models.CharField(max_length=200)
