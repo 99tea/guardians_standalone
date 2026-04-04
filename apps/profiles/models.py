@@ -50,7 +50,7 @@ class Player(models.Model):
     @staticmethod
     def xp_para_nivel(nivel):
         """Curva agressiva: começa fácil, cresce rapidamente."""
-        return int(50 * (nivel ** 2.5))
+        return int(16 * (nivel ** 2))
 
     @property
     def xp_proximo_nivel(self):

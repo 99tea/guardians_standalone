@@ -405,11 +405,6 @@ def _comprar_cosmetico(user, player, item, preco_final, desconto):
 
 @transaction.atomic
 def vender_passivo(user, item_id):
-    """
-    Remove passivo do slot e do inventário.
-    Reembolsa 50% do custo original (sem desconto).
-    Retorna (sucesso, mensagem, coins_recebidos).
-    """
     try:
         pi = PlayerItem.objects.select_related('item').get(
             player=user, item__item_id=item_id, item__tipo='passive'
@@ -418,21 +413,19 @@ def vender_passivo(user, item_id):
         return False, 'Item não encontrado no inventário.', 0
 
     reembolso = pi.item.cost // 2
-    player    = getattr(user, 'player', None)
+    nome      = pi.item.name
 
-    if player:
-        player.coins += reembolso
-        player.save()
+    from apps.profiles.services import grant_coins
+    grant_coins(user, reembolso, fonte='venda', aplicar_bonus=False)
 
     StoreTransaction.objects.create(
         player      = user,
         item        = pi.item,
         tipo        = 'sell',
         coins_delta = reembolso,
-        descricao   = f'Venda de "{pi.item.name}" (reembolso 50%)',
+        descricao   = f'Venda de "{nome}" (reembolso 50%)',
     )
 
-    nome = pi.item.name
     pi.delete()
 
     return True, f'"{nome}" vendido por {reembolso}⬡.', reembolso
@@ -586,26 +579,26 @@ def _aplicar_efeito_consumivel(user, player, item):
         }
 
     if effect == 'CONVERT_XP_GOLD':
-        xp_custo = int(item.value_secondary) if item.value_secondary else 500
+        xp_custo        = int(item.value_secondary) if item.value_secondary else 500
         coins_ganho_base = int(item.value)
 
         if player.xp_total < xp_custo:
-            return {'sucesso': False, 'mensagem': f'XP insuficiente. Você precisa de {xp_custo} XP para esta transação.'}
+            return {'sucesso': False, 'mensagem': f'XP insuficiente. Você precisa de {xp_custo} XP.'}
 
         from apps.profiles.services import revoke_xp, grant_coins
-        
+
         revoke_xp(user, xp_custo, f'Monetizador de Expertise: -{xp_custo} XP → Coins')
         player.refresh_from_db()
-        
-        coins_final = grant_coins(user, coins_ganho_base, 'store')
+
+        coin_result  = grant_coins(user, coins_ganho_base, 'consumivel')  # bonus aplicado
+        coins_final  = coin_result['final']
 
         return {
-            'sucesso': True,
-            'mensagem': f'Sucesso! {xp_custo} XP convertidos em +{coins_final}⬡ (bônus aplicados).',
-            'xp_delta': -xp_custo,
+            'sucesso':     True,
+            'mensagem':    f'Sucesso! {xp_custo} XP convertidos em +{coins_final}⬡ (bônus aplicados).',
+            'xp_delta':    -xp_custo,
             'coins_delta': coins_final,
         }
- 
     # ── Efeitos com duração — criam ActiveEffect ─────────────
  
     efeitos_com_duracao = {

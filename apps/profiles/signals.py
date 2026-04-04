@@ -44,10 +44,14 @@ def log_xp_event(sender, instance, created, **kwargs):
     if not created:
         return
 
+    # Fontes com log resumo próprio — não gera log individual de XP
+    FONTES_COM_LOG_PROPRIO = {'missao'}
+    if instance.fonte in FONTES_COM_LOG_PROPRIO:
+        return
+
     from apps.profiles.log_service import registrar_log
 
     tipo = 'xp_gain' if instance.xp_total > 0 else 'xp_loss'
-
     registrar_log(
         user=instance.player,
         tipo=tipo,
@@ -55,11 +59,11 @@ def log_xp_event(sender, instance, created, **kwargs):
         descricao=instance.fonte,
         xp_delta=instance.xp_total,
         breakdown={
-            "xp_base":        instance.xp_base,
-            "bonus_breakdown": instance.breakdown,   # lista detalhada real
-            "xp_bonus_total": instance.xp_bonus,
-            "xp_final":       instance.xp_total,
-            "extra":          {"fonte": instance.fonte},
+            "xp_base":         instance.xp_base,
+            "bonus_breakdown": instance.breakdown,
+            "xp_bonus_total":  instance.xp_bonus,
+            "xp_final":        instance.xp_total,
+            "extra":           {"fonte": instance.fonte},
         }
     )
 
@@ -311,7 +315,7 @@ def _register_battle_pass_signals():
                     user=instance.player,
                     tipo='battle_pass',
                     titulo=f'Battle Pass — Tier {tier_num} Coletado',
-                    coin_delta=tier_obj.recompensa_coins,
+                    coin_delta=0,
                     breakdown={
                         "tier":                 tier_num,
                         "recompensa_tipo":      tier_obj.recompensa_tipo,

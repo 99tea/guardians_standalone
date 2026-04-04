@@ -10,7 +10,7 @@ from django.db.models import Sum
 
 
 def xp_para_nivel(nivel):
-    return int(50 * (nivel ** 2.5))
+    return int(16 * (nivel ** 2))
 
 
 def get_perks_ativos(user):
@@ -214,38 +214,71 @@ def grant_xp(user, xp_base, fonte, descricao='', contexto=None):
 
 
 @transaction.atomic
-def grant_coins(user, coins_base, fonte='bonus'):
+def grant_coins(user, coins_base, fonte='bonus', aplicar_bonus=True, registrar=True):
     """
-    Concede coins ao player aplicando bônus de moedas.
-    Soma multiplicadores de Perks, Conquistas em Destaque e Itens Passivos.
+    Concede coins ao player aplicando bônus quando aplicar_bonus=True.
+    Fontes de preço fixo (venda) devem chamar com aplicar_bonus=False.
+    Registra SystemLog automaticamente.
+    Retorna dict com detalhes do ganho.
     """
+    from .log_service import registrar_log
+
     player = getattr(user, 'player', None)
     if not player or coins_base <= 0:
-        return 0
+        return {'base': 0, 'bonus_pct': 0, 'final': 0, 'fonte': fonte}
 
     bonus_pct = 0
 
-    # 1. Bônus de Perk da Classe ('coin_bonus')
-    perk_bonus = get_perk_valor(user, 'coin_bonus')
-    bonus_pct += perk_bonus
+    if aplicar_bonus:
+        # Bônus específico de moeda — Perk
+        bonus_pct += get_perk_valor(user, 'coin_bonus')
 
-    # 2. Bônus de Conquistas em Destaque ('coin_pct')
-    ach_bonus = get_achievement_bonus(user, 'coin_pct')
-    bonus_pct += ach_bonus
+        # Bônus específico de moeda — Conquista em destaque
+        bonus_pct += get_achievement_bonus(user, 'coin_pct')
 
-    # 3. (Opcional/Futuro) Bônus de Loja
-    # Se você tiver itens ativos (ActiveEffect) de Bônus de Ouro, pode integrá-los aqui.
-    # from apps.store.services import tem_efeito_ativo
-    # if tem_efeito_ativo(user, 'COIN_BOOST_DAYS'):
-    #     bonus_pct += 25 # (Ou buscar o valor do efeito no banco)
+        # Bônus global (afeta XP e coins) — Perk
+        bonus_pct += get_perk_valor(user, 'global_xp_pct')
 
-    # Calcula o valor final aplicando a porcentagem acumulada
+        # Bônus global (afeta XP e coins) — Conquista em destaque
+        bonus_pct += get_achievement_bonus(user, 'global_xp_pct')
+
+        # Bônus global — Item passivo XP_BOOST_DAYS (também afeta coins)
+        from apps.store.models import ActiveEffect
+        from django.utils import timezone
+        boost_ativo = ActiveEffect.objects.filter(
+            player=user,
+            effect='XP_BOOST_DAYS',
+            expires_at__gt=timezone.now()
+        ).first()
+        if boost_ativo:
+            bonus_pct += float(boost_ativo.value)
+
     coins_final = int(coins_base * (1 + bonus_pct / 100))
-    
+
     player.coins += coins_final
-    player.save()
-    
-    return coins_final
+    player.save(update_fields=['coins'])
+
+    if registrar:
+        registrar_log(
+            user=user,
+            tipo='coins',
+            titulo=f'+{coins_final}⬡ ({fonte})',
+            xp_delta=0,
+            coin_delta=coins_final,
+            breakdown={
+                'base':      coins_base,
+                'bonus_pct': bonus_pct,
+                'final':     coins_final,
+                'fonte':     fonte,
+            }
+        )
+
+    return {
+        'base':      coins_base,
+        'bonus_pct': bonus_pct,
+        'final':     coins_final,
+        'fonte':     fonte,
+    }
 
 def _notificar_perks_desbloqueados(user, classe, nivel):
     """Cria notificação para cada perk desbloqueado nesse nível."""
@@ -728,14 +761,9 @@ def coletar_recompensa_bp(user, tier_number):
 
     # ── Entrega a recompensa ──────────────────────
     if tier.recompensa_tipo == 'coins' and player:
-        player.coins += tier.recompensa_coins
-        player.save()
-        StoreTransaction.objects.create(
-            player      = user,
-            tipo        = 'purchase',
-            coins_delta = tier.recompensa_coins,
-            descricao   = f'Battle Pass Tier {tier_number} — {tier.recompensa_descricao or "Recompensa"}',
-        )
+        from apps.profiles.services import grant_coins
+        grant_coins(user, tier.recompensa_coins, fonte='battlepass', aplicar_bonus=False, registrar=False)
+
 
     elif tier.recompensa_tipo in ('item', 'cosmetico') and tier.recompensa_item:
         item = tier.recompensa_item
