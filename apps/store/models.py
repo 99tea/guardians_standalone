@@ -238,6 +238,7 @@ class PlayerItem(models.Model):
 
     adquirido_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
+    is_new = models.BooleanField(default=True)
 
     class Meta:
         verbose_name        = 'Item do Player'

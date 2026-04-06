@@ -97,34 +97,32 @@ def take_quiz(request, quiz_id):
 @require_POST
 def submit_quiz(request, quiz_id):
     quiz    = get_object_or_404(Quiz, pk=quiz_id)
-    attempt = get_object_or_404(
-        QuizAttempt, player=request.user, quiz=quiz, completed_at__isnull=True
-    )
+    attempt = get_object_or_404(QuizAttempt, player=request.user, quiz=quiz, completed_at__isnull=True)
 
     timer_expired = request.POST.get('timer_expired') == 'true'
     abandoned     = request.POST.get('abandoned') == 'true'
 
-    # Timer expirou no servidor (fonte de verdade)
     if quiz.time_limit_seconds and attempt.remaining_seconds() == 0:
         timer_expired = True
 
     total_correct = 0
     xp_earned     = 0
 
-    if timer_expired:
-        # Tempo esgotado = zero
-        xp_earned = 0
-    else:
-        # Calcula pontuação
+    if not timer_expired:
         for question in quiz.questions.prefetch_related('options').all():
             correct_ids  = set(question.options.filter(is_correct=True).values_list('id', flat=True))
-            selected_ids = set(
-                int(v) for v in request.POST.getlist(f'question_{question.id}')
-                if v.isdigit()
-            )
+            selected_ids = set(int(v) for v in request.POST.getlist(f'question_{question.id}') if v.isdigit())
             if selected_ids == correct_ids:
                 total_correct += 1
                 xp_earned     += question.xp_points
+
+    coins_base = quiz.coin_reward if (not abandoned and not timer_expired and xp_earned > 0) else 0
+
+    if coins_base > 0:
+        coins_result = grant_coins(request.user, coins_base, 'quiz')
+        attempt.coins_earned = coins_result['final']
+    else:
+        attempt.coins_earned = 0
 
     attempt.completed_at  = timezone.now()
     attempt.xp_earned     = xp_earned
@@ -133,21 +131,20 @@ def submit_quiz(request, quiz_id):
     attempt.timer_expired = timer_expired
     attempt.save()
 
-    # Concede XP e coins ao player
-    if not abandoned and not timer_expired and xp_earned > 0:
+    if coins_base > 0:
         total_questions = quiz.questions.count()
-
-        xp_result = grant_xp(request.user, xp_earned, 'quiz', f'Quiz: {quiz.titulo}', contexto={
-        'segundos_restantes': attempt.remaining_seconds(),
-        'tentativas': total_questions,
-        'won': total_questions > 0 and (total_correct / total_questions) >= 0.7,
-    } )
+        xp_result = grant_xp(
+            request.user, xp_earned, 'quiz', f'Quiz: {quiz.titulo}', 
+            contexto={
+                'segundos_restantes': attempt.remaining_seconds(),
+                'tentativas': total_questions,
+                'won': total_questions > 0 and (total_correct / total_questions) >= 0.7,
+            }
+        )
         request.session['last_xp_result'] = xp_result
-        grant_coins(request.user, quiz.coin_reward, 'quiz')
         registrar_desafio_diario(request.user)
 
     return redirect('minigames:quiz_result', quiz_id=quiz_id)
-
 
 @login_required
 def quiz_result(request, quiz_id):
@@ -289,11 +286,12 @@ def patrol_guess(request):
     if is_win:
         xp    = max(10, int(PATROL_XP_BASE / attempt.attempts_count))
         coins = random.randint(PATROL_COIN_MIN, PATROL_COIN_MAX)
+        coins_result = grant_coins(request.user, coins, 'patrol')
 
         attempt.won          = True
         attempt.completed    = True
         attempt.xp_earned    = xp
-        attempt.coins_earned = coins
+        attempt.coins_earned = coins_result['final']
         attempt.completed_at = timezone.now()
         attempt.guesses      = attempt.guesses
         attempt.save()                                   
@@ -306,7 +304,6 @@ def patrol_guess(request):
                 'won': attempt.won,
             })
         request.session['last_xp_result'] = xp_result
-        grant_coins(request.user, coins, 'patrol')
         registrar_desafio_diario(request.user)
 
         response.update({
@@ -398,7 +395,6 @@ def password_game_submit(request, attempt_id):
     if attempt.completed_at:
         return JsonResponse({'status': 'error', 'message': 'Jogo já finalizado.'}, status=400)
 
-    # Timeout no servidor
     if attempt.remaining_seconds() == 0 and PasswordGameConfig.get().time_limit_seconds:
         attempt.completed_at = timezone.now()
         attempt.is_won       = False
@@ -414,21 +410,22 @@ def password_game_submit(request, attempt_id):
 
     if is_valid:
         config = PasswordGameConfig.get()
-        attempt.is_won        = True
-        attempt.completed_at  = timezone.now()
-        attempt.input_password = password
-        attempt.xp_earned     = config.xp_reward
-        attempt.coins_earned  = config.coin_reward
-        attempt.save()
         
-        xp_result = grant_xp(request.user, config.xp_reward, 'password', 'Cofre de Senhas concluído', 
-                 contexto={
-                    'segundos_restantes': attempt.remaining_seconds(),
-                    'tentativas': 1,
-                    'won': attempt.is_won,
-                })
+        xp_result = grant_xp(
+            request.user, config.xp_reward, 'password', 'Cofre de Senhas concluído', 
+            contexto={'segundos_restantes': attempt.remaining_seconds(), 'tentativas': 1, 'won': True}
+        )
         request.session['last_xp_result'] = xp_result
-        grant_coins(request.user, config.coin_reward, 'password')
+        
+        coins_result = grant_coins(request.user, config.coin_reward, 'password')
+        
+        attempt.is_won         = True
+        attempt.completed_at   = timezone.now()
+        attempt.input_password = password
+        attempt.xp_earned      = config.xp_reward
+        attempt.coins_earned   = coins_result['final']
+        attempt.save()
+
         registrar_desafio_diario(request.user)
 
         return JsonResponse({'status': 'win', 'redirect': f'/minigames/cofre/{attempt.pk}/resultado/'})
@@ -538,22 +535,18 @@ def start_decriptar(request):
 @login_required
 @require_POST
 def request_hint_decriptar(request):
-    print("\n--- DEBUG DICA DECRIPTAR ---")
     try:
         body = json.loads(request.body)
         attempt_id = body.get('attempt_id')
         word_index = int(body.get('word_index', -1))
-        print(f"Recebido pedido: Attempt ID {attempt_id}, Word Index {word_index}")
     except (ValueError, json.JSONDecodeError):
         return JsonResponse({'error': 'Payload inválido.'}, status=400)
 
     attempt = DecriptarAttempt.objects.filter(pk=attempt_id, player=request.user, completed_at__isnull=True).first()
     if not attempt:
-        print("Erro: Tentativa não encontrada no banco.")
         return JsonResponse({'error': 'Tentativa não encontrada.'}, status=404)
 
     words = attempt.words_sequence
-    print(f"Total de palavras na tentativa: {len(words)}")
     
     if word_index < 0 or word_index >= len(words):
         print(f"Erro: Índice {word_index} é inválido.")
@@ -562,11 +555,8 @@ def request_hint_decriptar(request):
     word_data = words[word_index]
     word_hint = word_data.get('dica', '')
     
-    print(f"Dados da palavra no JSON: {word_data}")
-    print(f"Palavra secreta: {word_data.get('palavra', '???')} | Dica encontrada: '{word_hint}'")
 
     if not word_hint:
-        print("Erro: Sem dica cadastrada na palavra.")
         return JsonResponse({'error': 'Sem dica disponível.'}, status=400)
 
     time_deducted = 0
@@ -574,28 +564,22 @@ def request_hint_decriptar(request):
 
     if not word_data.get('hint_used', False):
         if attempt.free_hint_used:
-            print("Status: Já tinha ativado FREE_HINT nesta tentativa.")
             words[word_index]['hint_used'] = True
         elif tem_efeito_ativo(request.user, 'FREE_HINT'):
-            print("Status: Consumiu item FREE_HINT agora!")
             consumir_efeito_unico(request.user, 'FREE_HINT')
             attempt.free_hint_used = True
             words[word_index]['hint_used'] = True
         else:
             time_deducted = int((attempt.config.time_limit_seconds * attempt.config.hint_time_penalty_pct) / 100)
-            print(f"Status: Aplicando penalidade de {time_deducted}s.")
             attempt.penalty_seconds += time_deducted
             penalty_applied = True
             words[word_index]['hint_used'] = True
 
         attempt.words_sequence = words
         attempt.save()
-    else:
-        print("Status: Dica já havia sido usada para esta palavra (sem nova penalidade).")
 
     timer_expired = False
     if attempt.config.time_limit_seconds and attempt.remaining_seconds() <= 0:
-        print("Status: O tempo expirou ao pedir a dica!")
         attempt.timer_expired = True
         attempt.completed_at = timezone.now()
         attempt.save()
@@ -658,7 +642,6 @@ def play_decriptar(request):
 @login_required
 @require_POST
 def check_decriptar_word(request):
-    """AJAX — valida uma palavra. Nunca expõe a resposta ao cliente."""
     try:
         body       = json.loads(request.body)
         attempt_id = body.get('attempt_id')
@@ -674,7 +657,6 @@ def check_decriptar_word(request):
     if not attempt:
         return JsonResponse({'error': 'Tentativa não encontrada ou já encerrada.'}, status=404)
 
-    # Valida timer server-side
     if attempt.config.time_limit_seconds and attempt.remaining_seconds() == 0:
         attempt.timer_expired = True
         attempt.completed_at  = timezone.now()
@@ -702,10 +684,14 @@ def check_decriptar_word(request):
 
         if all_done:
             xp = attempt.correct_count * attempt.config.xp_per_word
+            moedas_base = attempt.config.coin_reward
+            coins_result = grant_coins(request.user, moedas_base, 'decriptar')
+            
             attempt.xp_earned    = xp
-            attempt.coins_earned = attempt.config.coin_reward
+            attempt.coins_earned = coins_result['final']
             attempt.completed_at = timezone.now()
             attempt.save()
+            
             contexto = {
                 'segundos_restantes': attempt.remaining_seconds(),
                 'erros': 3 - attempt.lives_remaining,
@@ -715,7 +701,6 @@ def check_decriptar_word(request):
             }
             xp_result = grant_xp(request.user, xp, 'decriptar', 'Decriptar concluído', contexto=contexto)
             request.session['last_xp_result'] = xp_result
-            grant_coins(request.user, attempt.config.coin_reward, 'decriptar')
             registrar_desafio_diario(request.user)
 
         return JsonResponse({
@@ -732,19 +717,28 @@ def check_decriptar_word(request):
         game_over = attempt.lives_remaining == 0
         if game_over:
             xp = attempt.correct_count * attempt.config.xp_per_word
+            moedas_base = attempt.config.coin_reward if attempt.correct_count > 0 else 0
+            
+            if moedas_base > 0:
+                coins_result = grant_coins(request.user, moedas_base, 'decriptar')
+                attempt.coins_earned = coins_result['final']
+            else:
+                attempt.coins_earned = 0
+
             attempt.xp_earned    = xp
-            attempt.coins_earned = attempt.config.coin_reward if attempt.correct_count > 0 else 0
             attempt.completed_at = timezone.now()
             attempt.save()
+            
             if xp > 0:
                 contexto={
                     'segundos_restantes': attempt.remaining_seconds(),
                     'tentativas': attempt.correct_count + (attempt.config.max_lives - attempt.lives_remaining),
                     'won': False,
                 }
-                grant_xp(request.user, xp, 'decriptar', 'Decriptar parcial', contexto=contexto)
-            if attempt.coins_earned > 0:
-                grant_coins(request.user, attempt.coins_earned, 'decriptar')
+                descricao_log = f'Decriptar parcial ({attempt.correct_count}/{len(attempt.words_sequence)})'
+                xp_result = grant_xp(request.user, xp, 'decriptar', descricao_log, contexto=contexto)
+                request.session['last_xp_result'] = xp_result
+                
             registrar_desafio_diario(request.user)
 
         return JsonResponse({
@@ -758,7 +752,6 @@ def check_decriptar_word(request):
 @login_required
 @require_POST
 def finish_decriptar(request):
-    """Abandonar ou timer expirado (POST via JS)."""
     try:
         body          = json.loads(request.body)
         attempt_id    = body.get('attempt_id')
@@ -775,25 +768,36 @@ def finish_decriptar(request):
         return JsonResponse({'error': 'Tentativa não encontrada.'}, status=404)
 
     xp = attempt.correct_count * attempt.config.xp_per_word
-    attempt.xp_earned     = xp if not timer_expired else 0
-    attempt.coins_earned  = attempt.config.coin_reward if (xp > 0 and not timer_expired) else 0
+    moedas_base = attempt.config.coin_reward if xp > 0 else 0
+    
+    if moedas_base > 0:
+        coins_result = grant_coins(request.user, moedas_base, 'decriptar')
+        attempt.coins_earned = coins_result['final']
+    else:
+        attempt.coins_earned = 0
+
+    attempt.xp_earned     = xp
     attempt.timer_expired = timer_expired
     attempt.abandoned     = abandoned
     attempt.completed_at  = timezone.now()
     attempt.save()
 
     if attempt.xp_earned > 0:
-        grant_xp(request.user, attempt.xp_earned, 'decriptar', 'Decriptar parcial', 
-                 contexto={
-                    'segundos_restantes': attempt.remaining_seconds(),
-                    'tentativas': attempt.correct_count + (attempt.config.max_lives - attempt.lives_remaining),
-                    'won': attempt.correct_count == len(attempt.words_sequence),
-                })
-    if attempt.coins_earned > 0:
-        grant_coins(request.user, attempt.coins_earned, 'decriptar')
+        descricao_log = f'Decriptar parcial ({attempt.correct_count}/{len(attempt.words_sequence)})'
+        xp_result = grant_xp(
+            request.user, 
+            attempt.xp_earned, 
+            'decriptar', 
+            descricao_log,
+            contexto={
+                'segundos_restantes': attempt.remaining_seconds(),
+                'tentativas': attempt.correct_count + (attempt.config.max_lives - attempt.lives_remaining),
+                'won': attempt.correct_count == len(attempt.words_sequence),
+            }
+        )
+        request.session['last_xp_result'] = xp_result
 
     return JsonResponse({'redirect': f'/minigames/decriptar/resultado/{attempt.id}/'})
-
 
 @login_required
 def decriptar_result(request, attempt_id):
@@ -866,21 +870,17 @@ def start_codigo(request):
 @login_required
 @require_POST
 def request_hint_codigo(request):
-    print("\n--- DEBUG DICA CÓDIGO ---")
     try:
         body = json.loads(request.body)
         attempt_id = body.get('attempt_id')
-        print(f"Recebido pedido de dica para Attempt ID: {attempt_id}")
     except (ValueError, json.JSONDecodeError):
         return JsonResponse({'error': 'Payload inválido.'}, status=400)
 
     attempt = CodigoAttempt.objects.filter(pk=attempt_id, player=request.user, completed_at__isnull=True).first()
     if not attempt:
-        print("Erro: Tentativa não encontrada no banco.")
         return JsonResponse({'error': 'Tentativa não encontrada.'}, status=404)
 
     word_hint = WordBank.objects.filter(palavra=attempt.secret_word, ativo=True).values_list('dica', flat=True).first()
-    print(f"Palavra secreta: {attempt.secret_word} | Dica encontrada no banco: '{word_hint}'")
     
     if not word_hint:
         return JsonResponse({'error': 'Sem dica cadastrada no banco.'}, status=400)
@@ -890,12 +890,10 @@ def request_hint_codigo(request):
 
     if attempt.penalty_seconds == 0 and not attempt.free_hint_used:
         if tem_efeito_ativo(request.user, 'FREE_HINT'):
-            print("Status: Usou item FREE_HINT!")
             consumir_efeito_unico(request.user, 'FREE_HINT')
             attempt.free_hint_used = True
         else:
             time_deducted = int((attempt.config.time_limit_seconds * attempt.config.hint_time_penalty_pct) / 100)
-            print(f"Status: Aplicando penalidade de tempo de {time_deducted} segundos.")
             attempt.penalty_seconds = time_deducted
             penalty_applied = True
         
@@ -903,13 +901,11 @@ def request_hint_codigo(request):
 
     timer_expired = False
     if attempt.config.time_limit_seconds and attempt.remaining_seconds() <= 0:
-        print("Status: O tempo expirou ao pedir a dica!")
         attempt.timer_expired = True
         attempt.completed_at = timezone.now()
         attempt.save()
         timer_expired = True
 
-    print("--- FIM DEBUG DICA ---\n")
     return JsonResponse({
         'hint': word_hint,
         'penalty_applied': penalty_applied,
@@ -1027,11 +1023,11 @@ def check_codigo_guess(request):
         attempt.completed_at = timezone.now()
 
         if is_winner:
-            # XP cheio se acertou em até metade das tentativas, 50% depois
             half = attempt.max_attempts // 2
             xp   = config.xp_reward if attempts_used <= half else config.xp_reward // 2
+            coins_result = grant_coins(request.user, config.coin_reward, 'codigo')
             attempt.xp_earned    = xp
-            attempt.coins_earned = config.coin_reward
+            attempt.coins_earned = coins_result['final']
         else:
             attempt.xp_earned    = 0
             attempt.coins_earned = 0
@@ -1046,8 +1042,6 @@ def check_codigo_guess(request):
                             'won': attempt.won,
                         })
             request.session['last_xp_result'] = xp_result
-            if attempt.coins_earned > 0:
-                grant_coins(request.user, attempt.coins_earned, 'codigo')
             registrar_desafio_diario(request.user)    
     else:
         attempt.save()
@@ -1058,7 +1052,6 @@ def check_codigo_guess(request):
         'game_over':     game_over,
         'attempts_used': attempts_used,
         'redirect':      f'/minigames/codigo/resultado/{attempt.id}/' if game_over else None,
-        # Revela a palavra apenas quando o jogo termina
         'secret_word':   secret if game_over and not is_winner else None,
     })
 

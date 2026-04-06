@@ -6,6 +6,9 @@ from django.contrib import messages
 from .models import (Quiz, QuizQuestion, QuizOption, QuizAttempt, MiniGameContent, PatrolAttempt, PasswordGameConfig, PasswordAttempt,
                      WordBank, DecriptarConfig, DecriptarAttempt, CodigoConfig, CodigoAttempt, PatrolConfig )
 
+
+
+
 ################
 ###ADMIN QUIZ###
 ################

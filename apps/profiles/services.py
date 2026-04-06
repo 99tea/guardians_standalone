@@ -10,8 +10,9 @@ from django.db.models import Sum
 
 
 def xp_para_nivel(nivel):
+    if nivel <= 10:
+        return 160 * nivel
     return int(16 * (nivel ** 2))
-
 
 def get_perks_ativos(user):
     """Retorna todos os perks ativos do player baseado na classe e level."""
@@ -44,7 +45,7 @@ def calcular_xp_com_bonus(user, xp_base, fonte, contexto=None):
     breakdown   = []
 
     # ── Perks globais ────────────────────────────
-    perks_global = get_perks_ativos(user).filter(tipo='xp_global')
+    perks_global = get_perks_ativos(user).filter(tipo='global_xp_pct')
     for perk in perks_global:
         bonus_pct += perk.valor
         breakdown.append({
@@ -568,7 +569,7 @@ def verificar_conquistas(user, trigger_type, valor_atual=None):
         pa = PlayerAchievement.objects.create(
             player      = user,
             achievement = conquista,
-            em_destaque = True,
+            em_destaque = False,
         )
 
         # Notificação

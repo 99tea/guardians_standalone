@@ -15,30 +15,25 @@ class Player(models.Model):
         ('hacker',    'Hacker'),
     ]
 
-    user          = models.OneToOneField(User, on_delete=models.CASCADE, related_name='player')
-    display_name  = models.CharField(max_length=60, blank=True)
-    avatar        = models.ImageField(upload_to='avatars/', blank=True, null=True)
-    classe        = models.CharField(max_length=20, choices=CLASSE_CHOICES, default='guardian')
-    bio           = models.TextField(blank=True)
+    user           = models.OneToOneField(User, on_delete=models.CASCADE, related_name='player')
+    display_name   = models.CharField(max_length=60, blank=True)
+    avatar         = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    classe         = models.CharField(max_length=20, choices=CLASSE_CHOICES, default='guardian')
+    bio            = models.TextField(blank=True)
 
-    # Progressão
-    xp_total      = models.PositiveIntegerField(default=0)
-    level         = models.PositiveSmallIntegerField(default=1)
-    coins         = models.PositiveIntegerField(default=0)
-    streak_days   = models.PositiveSmallIntegerField(default=0)
+    xp_total       = models.PositiveIntegerField(default=0)
+    level          = models.PositiveSmallIntegerField(default=1)
+    coins          = models.PositiveIntegerField(default=0)
+    streak_days    = models.PositiveSmallIntegerField(default=0)
     last_play_date = models.DateField(null=True, blank=True)
 
-    # Troca de classe
     classe_trocada_em = models.DateTimeField(null=True, blank=True)
 
     created_at    = models.DateTimeField(auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)
 
-    #Ofensiva
-    ofensiva        = models.PositiveIntegerField(default=0,
-        help_text='Total acumulado de ofensiva (sem teto)')
-    last_challenge_date = models.DateField(null=True, blank=True,
-        help_text='Último dia em que completou pelo menos um desafio')
+    ofensiva      = models.PositiveIntegerField(default=0)
+    last_challenge_date = models.DateField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Player'
@@ -49,7 +44,8 @@ class Player(models.Model):
 
     @staticmethod
     def xp_para_nivel(nivel):
-        """Curva agressiva: começa fácil, cresce rapidamente."""
+        if nivel <= 10:
+            return 160 * nivel
         return int(16 * (nivel ** 2))
 
     @property
@@ -64,12 +60,10 @@ class Player(models.Model):
 
     @property
     def xp_no_nivel_atual(self):
-        """XP acumulado dentro do nível corrente."""
         return self.xp_total - self.xp_nivel_anterior
 
     @property
     def xp_necessario_nivel_atual(self):
-        """Quanto XP é necessário para completar o nível atual."""
         return self.xp_proximo_nivel - self.xp_nivel_anterior
 
     @property
@@ -82,7 +76,6 @@ class Player(models.Model):
     @property
     def xp_para_proximo_nivel(self):
         return self.xp_proximo_nivel
-
 
 # ─────────────────────────────────────────────
 # PERKS

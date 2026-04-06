@@ -162,6 +162,7 @@ class QuizAttempt(models.Model):
     used_retake_token = models.BooleanField(default=False)
     bonus_seconds = models.PositiveIntegerField(default=0)
     penalty_seconds = models.PositiveIntegerField(default=0)
+    coins_earned    = models.PositiveSmallIntegerField(default=0)
 
 
     class Meta:

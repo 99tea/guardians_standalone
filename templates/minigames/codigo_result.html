@@ -220,8 +220,8 @@
 <script>
 (function () {
     const STORAGE_KEY   = 'xp_result_{{ request.user.pk }}_{{ attempt.pk }}';
-    const XP_FROM_DJ    = {{ xp_result.xp_final|default:0 }};
-    const XP_FINAL      = XP_FROM_DJ > 0
+    const XP_FROM_DJ = {{ xp_result.xp_final|default:0 }};
+    const XP_FINAL   = XP_FROM_DJ;
         ? (localStorage.setItem(STORAGE_KEY, XP_FROM_DJ), XP_FROM_DJ)
         : (Number(localStorage.getItem(STORAGE_KEY)) || 0);
     const XP_PCT_BEFORE = {{ request.user.player.xp_percentual }};
