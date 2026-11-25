@@ -7,9 +7,7 @@ Plataforma gamificada **multi-tenant** de conscientização e treinamento em cib
 ## 🚀 Principais Funcionalidades
 
 ### 🏢 Arquitetura Multi-Tenant Corporativa
-- **Isolamento por Empresa (Workspace):** Cada organização possui seu próprio ambiente, colaboradores, notificações, missões, temporada e placares independentes.
 - **Disputa Interdepartamental:** Colaboradores somam pontos tanto para o ranking individual quanto para a média/total de seu departamento dentro da empresa.
-- **Alternância e Provisionamento:** Troca rápida de workspaces corporativos via modal e cadastro de novas empresas com domínio institucional e setores customizados (`POST /tenant/register`, `POST /tenant/switch`, `GET /api/tenants`).
 
 ### 🎮 Minigames & Desafios Táticos
 - **Simulações de Quiz (`/minigames/quiz/:id/play`):** Cenários de Phishing & Engenharia Social, Gestão de Senhas & MFA e Segurança de Redes/Criptografia, com limite de tempo e cálculo dinâmico de recompensas.
@@ -27,21 +25,3 @@ Plataforma gamificada **multi-tenant** de conscientização e treinamento em cib
 
 ---
 
-## 🛠️ Stack Tecnológica
-
-- **Backend:** Node.js + Express (`ES Modules`)
-- **Template Engine:** EJS (`views/`)
-- **Frontend:** HTML5, CSS3 modularizado (`static/css/`), Bootstrap 5.3 + Bootstrap Icons
-- **Gerenciamento de Sessão/Tenant:** `cookie-parser`
-
----
-
-## 📁 Estrutura do Projeto
-
-```text
-├── server.js              # Servidor Express, motor de recompensas, catálogo e rotas multi-tenant
-├── package.json           # Dependências e scripts de execução
-├── static/                # Arquivos estáticos (CSS, JS, avatares e imagens de conquistas)
-└── views/                 # Templates EJS
-    ├── partials/          # Navbar, header, footer e modais (tenant, inventário, conquistas, battle pass)
-    └── minigames/         # Telas de execução e resultado dos minigames
