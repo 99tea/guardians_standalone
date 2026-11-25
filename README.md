@@ -1,4 +1,3 @@
-```markdown
 # 🛡️ Comnect Guardians
 
 > Gamified **multi-tenant** cybersecurity awareness and training platform for corporate environments.
